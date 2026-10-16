@@ -3,15 +3,25 @@
 #include <SDL3/SDL.h>
 #include "SDL3_gfxPrimitives.h"
 #include "SDL3_framerate.h"
-#include "bodies.h"
 #include "math.h"
-#include "Wavelength_Rgb.h"
+#include "src/bodies.h"
+#include "src/Wavelength_Rgb.h"
+
+const double C = 1000.0;
+const double C_SQUARED = C*C;
+const double MIN_SPEED = 0.01; // The minimum speed of body i of C. MUST BE << C
+const double MAX_SPEED = 0.025; // The minimum speed of body i of C. MUST BE << C
+
+const int NUM_BODIES = 20;
+
+const int WALL_THICKNESS = 15;
+const uint32_t WALL_COLOUR = 0X0F00F09F;
 
 int WIDTH = 1600;
 int HEIGHT = 1200;
 double EPSILON = (double)0.01;
-const double C = 100.0;
-const double C_SQUARED = C*C;
+
+
 
 double Q_rsqrt( double number )
 {
@@ -142,13 +152,13 @@ int checkBodyCollision(body* b1, body*b2){
 
 int checkWallCollision(body* b){
     int hit = 0;
-    if ((b->pos[0] - b->radius <= 0     && b->velocity[0] < 0) ||
-        (b->pos[0] + b->radius >= WIDTH && b->velocity[0] > 0)) {
+    if ((b->pos[0] - b->radius <= 0 + WALL_THICKNESS/2 && b->velocity[0] < 0) ||
+        (b->pos[0] + b->radius >= WIDTH - WALL_THICKNESS/2 && b->velocity[0] > 0)) {
         change_body_velocity(b, -b->velocity[0], b->velocity[1]);
         hit = 1;
     }
-    if ((b->pos[1] - b->radius <= 0      && b->velocity[1] < 0) ||
-        (b->pos[1] + b->radius >= HEIGHT && b->velocity[1] > 0)) {
+    if ((b->pos[1] - b->radius <= 0 + WALL_THICKNESS/2 && b->velocity[1] < 0) ||
+        (b->pos[1] + b->radius >= HEIGHT - WALL_THICKNESS/2 && b->velocity[1] > 0)) {
         change_body_velocity(b, b->velocity[0], -b->velocity[1]);
         hit = 1;
     }
@@ -171,20 +181,22 @@ void handelCollision(body* bodies, int num){
 }
 
 void makeNewBody(body* body){
-    double x_pos = ((double)rand()/(double)RAND_MAX) * (double)WIDTH;
-    double y_pos = ((double)rand()/(double)RAND_MAX) * (double)HEIGHT;
+    int radius = (rand() % 100) + 1;
+
+    double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH - radius) + (double)radius;
+    double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT- radius) + (double)radius;
     double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
-    double v_total = ((double)rand()/(double)RAND_MAX) * 0.90 *C + 0.01 *C ;
+    double v_total = ((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) *C +  MIN_SPEED*C;
+    
     // v_total = 0.5 * C;
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
     uint64_t colour = wavelengthToHex((uint64_t)380 + (uint64_t)rand() % (700- 380));
-    colour = 0XFF000000;
-    //    uint64_t colour = wavelengthToHex(380.0 + ((double)rand()/(double)RAND_MAX)*(700.0 - 380.0));
+    // colour = wavelengthToHex(580);
+    
 
-
-    body_init(body, 100, x_pos, y_pos, v_x, v_y, 20, colour);
+    body_init(body, 10*M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
 }
 
 void setupBodies(body* bodies, int num){
@@ -214,12 +226,40 @@ void updateBodies(body* bodies, int num){
     }
 }
 
-void renderBodies(SDL_Renderer* renderer, body* bodies, int num){
+void renderBodies(SDL_Renderer* renderer, body* bodies){
     Uint32 c = 0;
-    for (int i = 0; i < num; i++){
+    for (int i = 0; i < NUM_BODIES; i++){
         c = bodies[i].relative_colour;
-        filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+        if (!filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)){
+            printf("FAILED TO DRAW BODY");
+        };
     }
+}
+
+int drawFrame(SDL_Renderer * renderer, body* bodies){
+    // Draw bacground colours
+    if (!(SDL_SetRenderDrawColor(renderer, 20, 30, 60, 255) && SDL_RenderClear(renderer))){
+        printf("SDL_SetRenderDrawColor || SDL_RenderClear didn't work: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    renderBodies(renderer, bodies);
+
+    // Draw Walls
+    if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR)) == 4){
+        printf("SDL_RenderLine didn't work: %s\n", SDL_GetError());
+        return -1;
+    }        
+
+
+    return 0;
+}
+
+void cleanBodies(body* bodies){
+    for(int i = 0; i < NUM_BODIES; i++){
+        free(&bodies[i]);
+    }
+    free(bodies);
 }
 
 int main(int argc, char* argv[]){
@@ -246,10 +286,9 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
-    int num_bodies = 10;
 
-    body* bodies = malloc(num_bodies * sizeof(body));
-    setupBodies(bodies, num_bodies);
+    body* bodies = malloc(NUM_BODIES * sizeof(body));
+    setupBodies(bodies, NUM_BODIES);
 
 
     SDL_Event windowEvent;
@@ -262,20 +301,24 @@ int main(int argc, char* argv[]){
                 break;
             }
         }
-        // 1. Background: dark blue (R, G, B, A — each 0 to 255)
-        SDL_SetRenderDrawColor(renderer, 20, 30, 60, 255);
-        SDL_RenderClear(renderer);
 
         // 2. Update Bodies
-        updateBodies(bodies, num_bodies);
+        updateBodies(bodies, NUM_BODIES);
 
-
-        // 3. Show the frame
-        renderBodies(renderer, bodies, num_bodies);
+        // 2. Draw the frame
+        if (drawFrame(renderer, bodies) != 0){
+            
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            cleanBodies(bodies);
+            return -1;
+        }
+        
         SDL_RenderPresent(renderer);
         SDL_Delay(1);
     }
 
+    cleanBodies(bodies);
     SDL_DestroyWindow(window);
     SDL_Quit();
     

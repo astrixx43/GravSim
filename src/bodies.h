@@ -10,4 +10,4 @@ typedef struct{
 
 }body;
 
-void body_init(body* body, int mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour);
+void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour);
