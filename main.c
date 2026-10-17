@@ -1,25 +1,28 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
+
 #include "SDL3_gfxPrimitives.h"
 #include "SDL3_framerate.h"
 #include "math.h"
 #include "src/bodies.h"
 #include "src/Wavelength_Rgb.h"
 
-const double C = 1000.0;
+const double C = 2560.0/5.0;
 const double C_SQUARED = C*C;
-const double MIN_SPEED = 0.01; // The minimum speed of body i of C. MUST BE << C
-const double MAX_SPEED = 0.025; // The minimum speed of body i of C. MUST BE << C
+const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
+const double MAX_SPEED = 0.035; // The minimum speed of body i of C. MUST BE << C
 
-const int NUM_BODIES = 20;
+const int NUM_BODIES = 10;
 
-const int WALL_THICKNESS = 15;
-const uint32_t WALL_COLOUR = 0X0F00F09F;
+const int WALL_THICKNESS = 1;
+const uint32_t WALL_COLOUR = 0X0F00F000;
 
-int WIDTH = 1600;
-int HEIGHT = 1200;
+int WIDTH = 2560;
+int HEIGHT = 1600;
 double EPSILON = (double)0.01;
+
 
 
 
@@ -192,8 +195,8 @@ void makeNewBody(body* body){
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
-    uint64_t colour = wavelengthToHex((uint64_t)380 + (uint64_t)rand() % (700- 380));
-    // colour = wavelengthToHex(580);
+    // uint64_t colour = wavelengthToHex((uint64_t)380 + (uint64_t)rand() % (700- 380));
+    uint32_t colour = wavelengthToHex(580);
     
 
     body_init(body, 10*M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
@@ -220,33 +223,51 @@ void updateBodies(body* bodies, int num){
     handelCollision(bodies, num);
 
     for (int i = 0; i < num; i++){
+
+        bodies[i].velocity[1] = bodies[i].velocity[1] + EPSILON * 9.81;
+
         bodies[i].pos[0] = bodies[i].pos[0] + EPSILON*bodies[i].velocity[0];
         bodies[i].pos[1] = bodies[i].pos[1] + EPSILON*bodies[i].velocity[1];
         relativisticDopplerEffect(&bodies[i]);
     }
 }
 
-void renderBodies(SDL_Renderer* renderer, body* bodies){
+void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font* font, body* bodies){
     Uint32 c = 0;
+    TTF_Text* body_text = TTF_CreateText(text_engine, font, "Hello World\0", 0); 
+    char str[20];
+
     for (int i = 0; i < NUM_BODIES; i++){
         c = bodies[i].relative_colour;
+
+
+        snprintf(str, sizeof(str), "%.2f , %.2f\0", bodies[i].velocity[0], bodies[i].velocity[1]);
+
+        body_text = TTF_CreateText(text_engine, font, str, 0); 
+
         if (!filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)){
             printf("FAILED TO DRAW BODY");
         };
+
+        // if (!TTF_DrawRendererText(body_text, bodies[i].pos[0]-bodies[i].radius, bodies[i].pos[1])-bodies[i].radius){
+        //     // printf("FAILED TO DRAW TEXT: %s\n", SDL_GetError());
+        // }
+        
+        
     }
 }
 
-int drawFrame(SDL_Renderer * renderer, body* bodies){
+int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font* font, body* bodies){
     // Draw bacground colours
     if (!(SDL_SetRenderDrawColor(renderer, 20, 30, 60, 255) && SDL_RenderClear(renderer))){
         printf("SDL_SetRenderDrawColor || SDL_RenderClear didn't work: %s\n", SDL_GetError());
         return -1;
     }
 
-    renderBodies(renderer, bodies);
+    renderBodies(renderer, text_engine, font, bodies);
 
     // Draw Walls
-    if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR)) == 4){
+    if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) == 4)){
         printf("SDL_RenderLine didn't work: %s\n", SDL_GetError());
         return -1;
     }        
@@ -286,6 +307,25 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
+    if (!TTF_Init()) {
+        printf("TTF_Init failed: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+    TTF_TextEngine *text_engine = TTF_CreateRendererTextEngine(renderer);
+    TTF_Font* font = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 20);
+
+    if (text_engine == NULL || font == NULL){
+        printf("TTF_CreateRendererTextEngine Renderer didn't work: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        
+        return -1;
+    }
 
     body* bodies = malloc(NUM_BODIES * sizeof(body));
     setupBodies(bodies, NUM_BODIES);
@@ -306,19 +346,26 @@ int main(int argc, char* argv[]){
         updateBodies(bodies, NUM_BODIES);
 
         // 2. Draw the frame
-        if (drawFrame(renderer, bodies) != 0){
+        if (drawFrame(renderer, text_engine, font, bodies) != 0){
             
+            TTF_CloseFont(font);
+            TTF_DestroyRendererTextEngine(text_engine);
+            SDL_DestroyRenderer(renderer);
             SDL_DestroyWindow(window);
             SDL_Quit();
             cleanBodies(bodies);
             return -1;
         }
-        
+
         SDL_RenderPresent(renderer);
         SDL_Delay(1);
     }
 
     cleanBodies(bodies);
+
+    TTF_CloseFont(font);
+    TTF_DestroyRendererTextEngine(text_engine);
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     
