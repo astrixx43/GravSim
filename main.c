@@ -17,11 +17,11 @@ const double C =  1920.0 + 0 * 299792458.0;
 const double C_SQUARED = C*C;
 double G = 6.67430 * 0.000000000001;
 
-const double MIN_SPEED = 0.001; // The minimum speed of body i of C. MUST BE << C
-const double MAX_SPEED = 0.10; // The minimum speed of body i of C. MUST BE << C
+const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
+const double MAX_SPEED = 0.2; // The minimum speed of body i of C. MUST BE << C
 
 
-const int NUM_BODIES = 30;
+const int NUM_BODIES = 10;
 const int NUM_TRACES = 10; // Set KK equal to this and set this to 4-6 give good lookinfg results
 int indexOfTrace = NUM_TRACES - 1;
 
@@ -458,7 +458,7 @@ int main(int argc, char* argv[]){
                 break;
             }
         }
-        for (int jjk = 0; jjk < ((((1.0/FRAMERATE) )/EPSILON) + 1); jjk++){
+        for (int jjk = 0; jjk < ((1.0 /(EPSILON + FRAMERATE)) + 1); jjk++){
             if (kk == NUM_TRACES){
             // 1. Update Traces
                 updateTraces(traces, bodies);

@@ -8,7 +8,7 @@ OBJS := $(patsubst %.c,build/%.o,$(SRCS))
 DEPS := $(OBJS:.o=.d)
 
 ifeq ($(OS),Windows_NT)
-    TARGET := main.exe
+    TARGET := GravSim.exe
     MKDIR   = if not exist "$(subst /,\,$(1))" mkdir "$(subst /,\,$(1))"
     CLEAN   = if exist build rmdir /s /q build & if exist $(TARGET) del /q $(TARGET)
 else
