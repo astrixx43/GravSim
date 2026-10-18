@@ -10,4 +10,13 @@ typedef struct{
 
 }body;
 
+typedef struct{
+    double pos[2]; // Pos in x
+    uint64_t colour;
+    int radius;
+
+}traceBody;
+
 void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour);
+
+void trace_init(traceBody* trace, body* body);

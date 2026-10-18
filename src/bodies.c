@@ -17,3 +17,17 @@ void body_init(body* body, double mass, double x, double y, double v_x, double v
     body->rest_colour = colour;
     body->relative_colour = colour;
 }
+
+void trace_init(traceBody* trace, body* body){ 
+
+    trace->pos[0] = body->pos[0];
+    trace->pos[1] = body->pos[1];
+
+    trace->radius = body->radius; 
+
+    
+    uint32_t traceAlpha = body->relative_colour & 0XFF;
+
+    trace->colour = (body->relative_colour & 0XFFFFFF00) + traceAlpha;
+
+}

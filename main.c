@@ -1,29 +1,36 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
+
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
 #include "SDL3_gfxPrimitives.h"
 #include "SDL3_framerate.h"
-#include "math.h"
 #include "src/bodies.h"
 #include "src/Wavelength_Rgb.h"
 
-const double C = 2560.0/5.0;
+#define TRACE_MAX_ALPHA 120  
+
+const double C = 1000.0/1.0;
 const double C_SQUARED = C*C;
-const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
-const double MAX_SPEED = 0.035; // The minimum speed of body i of C. MUST BE << C
+const double MIN_SPEED = 0.01; // The minimum speed of body i of C. MUST BE << C
+const double MAX_SPEED = 0.5; // The minimum speed of body i of C. MUST BE << C
 
-const int NUM_BODIES = 10;
 
-const int WALL_THICKNESS = 1;
+const int NUM_BODIES = 30;
+const int NUM_TRACES = 10; // Set KK equal to this and set this to 4-6 give good lookinfg results
+int indexOfTrace = NUM_TRACES - 1;
+
+const int WALL_THICKNESS = 10;
 const uint32_t WALL_COLOUR = 0X0F00F000;
 
-int WIDTH = 2560;
-int HEIGHT = 1600;
-double EPSILON = (double)0.01;
+int WIDTH = 1920;
+int HEIGHT = 1080;
+double EPSILON = 0.001; // simmulation step size. 1 == a second
 
-
+bool SHOWTEXT = true;
 
 
 double Q_rsqrt( double number )
@@ -184,22 +191,21 @@ void handelCollision(body* bodies, int num){
 }
 
 void makeNewBody(body* body){
-    int radius = (rand() % 100) + 1;
-
-    double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH - radius) + (double)radius;
-    double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT- radius) + (double)radius;
-    double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
-    double v_total = ((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) *C +  MIN_SPEED*C;
+    int radius = (rand() % 100) + 15;
     
-    // v_total = 0.5 * C;
+    double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH - radius) + (double)radius;
+    double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT - radius) + (double)radius;
+    double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
+
+    double v_total = (((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C;
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
-    // uint64_t colour = wavelengthToHex((uint64_t)380 + (uint64_t)rand() % (700- 380));
-    uint32_t colour = wavelengthToHex(580);
+    uint64_t colour = wavelengthToHex((uint64_t)380 + (uint64_t)rand() % (700- 380));
+    // uint32_t colour = wavelengthToHex(580);
     
 
-    body_init(body, 10*M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
+    body_init(body, M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
 }
 
 void setupBodies(body* bodies, int num){
@@ -218,13 +224,24 @@ void setupBodies(body* bodies, int num){
 
 }
 
+void setupBodyTraces(traceBody** traces, body* bodies){
+    for (int i = 0; i < NUM_BODIES; i++){
+        traces[i] = malloc(NUM_TRACES*sizeof(traceBody));
+
+        for (int j = 0; j < NUM_TRACES; j++){
+            trace_init(&traces[i][j], &bodies[i]);
+        }
+
+    }
+}
+
 void updateBodies(body* bodies, int num){
     
     handelCollision(bodies, num);
 
     for (int i = 0; i < num; i++){
 
-        bodies[i].velocity[1] = bodies[i].velocity[1] + EPSILON * 9.81;
+        // bodies[i].velocity[1] = bodies[i].velocity[1] + EPSILON * 9.81;
 
         bodies[i].pos[0] = bodies[i].pos[0] + EPSILON*bodies[i].velocity[0];
         bodies[i].pos[1] = bodies[i].pos[1] + EPSILON*bodies[i].velocity[1];
@@ -232,40 +249,74 @@ void updateBodies(body* bodies, int num){
     }
 }
 
-void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font* font, body* bodies){
+void updateTraces(traceBody** traces, body* bodies){
+    uint32_t traceAlpha;
+
+    for (int i = 0; i < NUM_BODIES; i++){
+        trace_init(&traces[i][indexOfTrace], &bodies[i]);
+    }
+
+    indexOfTrace = (indexOfTrace + 1) % NUM_TRACES;
+}
+
+void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font** fonts, body* bodies){
     Uint32 c = 0;
-    TTF_Text* body_text = TTF_CreateText(text_engine, font, "Hello World\0", 0); 
-    char str[20];
+    
+    TTF_Text* body_text;
+    char body_str[40];
+    uint32_t fontSize;
 
     for (int i = 0; i < NUM_BODIES; i++){
         c = bodies[i].relative_colour;
 
 
-        snprintf(str, sizeof(str), "%.2f , %.2f\0", bodies[i].velocity[0], bodies[i].velocity[1]);
-
-        body_text = TTF_CreateText(text_engine, font, str, 0); 
-
         if (!filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)){
             printf("FAILED TO DRAW BODY");
         };
 
-        // if (!TTF_DrawRendererText(body_text, bodies[i].pos[0]-bodies[i].radius, bodies[i].pos[1])-bodies[i].radius){
-        //     // printf("FAILED TO DRAW TEXT: %s\n", SDL_GetError());
-        // }
         
+        
+        if (SHOWTEXT){
+            snprintf(body_str, sizeof(body_str), "(%.2fC, %.2fC)\0", bodies[i].velocity[0]/C, bodies[i].velocity[1]/C);
+            fontSize = TTF_GetFontSize(fonts[i]);
+            body_text = TTF_CreateText(text_engine, fonts[i], body_str, 0); 
+            TTF_SetTextColor(body_text, 0XFF - (bodies[i].relative_colour >> 24) & 0X00FF, 0XFF - (bodies[i].relative_colour >> 16) & 0X00FF, 0XFF - (bodies[i].relative_colour >> 8)  & 0X00FF, (bodies[i].relative_colour) & 0X000000FF );
+            
+            if (!TTF_DrawRendererText(body_text, bodies[i].pos[0] - (fontSize + 6)* 1.3333 - bodies[i].radius/2, bodies[i].pos[1] - (fontSize - 2)* 1.3333 +(strlen(body_str)/2))){
+                // printf("FAILED TO DRAW TEXT: %s\n", SDL_GetError());
+            }
+            TTF_DestroyText(body_text);
+        }
+
         
     }
 }
 
-int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font* font, body* bodies){
+void renderTraces(SDL_Renderer* renderer, traceBody** traces){
+    uint32_t c = 0;
+    for (int i = 0; i < NUM_BODIES; i++){
+        for (int age = NUM_TRACES - 1; age >= 0; age--){
+            int j = (indexOfTrace - 1 - age + NUM_TRACES) % NUM_TRACES;
+            double scale = 1.0 - (double)(age + 1) / (3.0 * (NUM_TRACES + 1));
+            c = traces[i][j].colour;
+
+            if (!filledCircleRGBA(renderer, traces[i][j].pos[0], traces[i][j].pos[1], (int)(scale * traces[i][j].radius), (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, (uint8_t)(scale * (c & 0xFF)))){
+                printf("FAILED TO DRAW TRACE BODY");
+            };
+        }
+    }
+}
+
+int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font** fonts, body* bodies, traceBody** traces){
     // Draw bacground colours
     if (!(SDL_SetRenderDrawColor(renderer, 20, 30, 60, 255) && SDL_RenderClear(renderer))){
         printf("SDL_SetRenderDrawColor || SDL_RenderClear didn't work: %s\n", SDL_GetError());
-        return -1;
+        return -1; 
     }
 
-    renderBodies(renderer, text_engine, font, bodies);
-
+    renderTraces(renderer, traces);
+    renderBodies(renderer, text_engine, fonts, bodies);
+    
     // Draw Walls
     if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) == 4)){
         printf("SDL_RenderLine didn't work: %s\n", SDL_GetError());
@@ -273,21 +324,33 @@ int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font* fo
     }        
 
 
+
     return 0;
 }
 
 void cleanBodies(body* bodies){
-    for(int i = 0; i < NUM_BODIES; i++){
-        free(&bodies[i]);
-    }
     free(bodies);
 }
 
+void cleanTraces(traceBody** traces){
+    for (int i = 0; i < NUM_BODIES; i++){
+        free(traces[i]);
+    }
+    free(traces);
+}
+
+void closeFonts(TTF_Font** fonts){
+    for(int f = 0; f< NUM_BODIES; f++){
+        TTF_CloseFont(fonts[f]);
+    }
+    free(fonts);
+}
+
 int main(int argc, char* argv[]){
-    
+    int kk = 0;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         printf("SDL_Init failed: %s\n", SDL_GetError());
-        return 1;
+        return -1;
     }
     SDL_Window* window = SDL_CreateWindow("Hello SDL World", WIDTH, HEIGHT, SDL_WINDOW_BORDERLESS);
 
@@ -307,7 +370,7 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
-    if (!TTF_Init()) {
+    if (SHOWTEXT && !TTF_Init()) {
         printf("TTF_Init failed: %s\n", SDL_GetError());
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -315,11 +378,26 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
-    TTF_TextEngine *text_engine = TTF_CreateRendererTextEngine(renderer);
-    TTF_Font* font = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 20);
+    TTF_TextEngine *text_engine = NULL;
+    TTF_Font** fonts = NULL;
 
-    if (text_engine == NULL || font == NULL){
+    if (SHOWTEXT){
+        text_engine = TTF_CreateRendererTextEngine(renderer);
+        fonts = malloc(NUM_BODIES*sizeof(TTF_Font*));
+    }
+    
+    if (SHOWTEXT && text_engine == NULL){
         printf("TTF_CreateRendererTextEngine Renderer didn't work: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        
+        return -1;
+    }
+    if (SHOWTEXT && fonts == NULL){
+        printf("Malloc did not work for Fonts\n");
+
+        TTF_DestroyRendererTextEngine(text_engine);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -330,10 +408,21 @@ int main(int argc, char* argv[]){
     body* bodies = malloc(NUM_BODIES * sizeof(body));
     setupBodies(bodies, NUM_BODIES);
 
+    traceBody** traces = malloc(NUM_BODIES * sizeof(*traces));
+    setupBodyTraces(traces, bodies);
+
+
+    for (int f = 0; (f < NUM_BODIES && SHOWTEXT); f++){
+        fonts[f] = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 4 * bodies[f].radius/15);
+        TTF_SetFontStyle(fonts[f], TTF_STYLE_BOLD);
+    } 
+
+ 
 
     SDL_Event windowEvent;
 
-    
+    uint32_t framteRate = ((uint32_t)(EPSILON*1000.0) > 0)? (uint32_t)(EPSILON*1000.0) : 1 ;
+
     while (true)
     {
         if(SDL_PollEvent(&windowEvent)){
@@ -341,32 +430,41 @@ int main(int argc, char* argv[]){
                 break;
             }
         }
+        if (kk == NUM_TRACES){
+        // 1. Update Traces
+            updateTraces(traces, bodies);
+            kk = 0;
+        }
 
+        kk += 1;
         // 2. Update Bodies
         updateBodies(bodies, NUM_BODIES);
 
-        // 2. Draw the frame
-        if (drawFrame(renderer, text_engine, font, bodies) != 0){
+        // 3. Draw the frame
+        if (drawFrame(renderer, text_engine, fonts, bodies, traces) != 0){
             
-            TTF_CloseFont(font);
+            closeFonts(fonts);
             TTF_DestroyRendererTextEngine(text_engine);
             SDL_DestroyRenderer(renderer);
             SDL_DestroyWindow(window);
             SDL_Quit();
             cleanBodies(bodies);
+            cleanTraces(traces);
             return -1;
         }
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(1);
+        SDL_Delay(framteRate);
     }
 
     cleanBodies(bodies);
+    cleanTraces(traces);
 
-    TTF_CloseFont(font);
+    closeFonts(fonts);
     TTF_DestroyRendererTextEngine(text_engine);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    TTF_Quit();
     SDL_Quit();
     
     return SDL_EVENT_QUIT;
