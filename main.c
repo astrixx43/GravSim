@@ -13,10 +13,12 @@
 
 #define TRACE_MAX_ALPHA 120  
 
-const double C = 1000.0/1.0;
+const double C =  1920.0 + 0 * 299792458.0;
 const double C_SQUARED = C*C;
-const double MIN_SPEED = 0.01; // The minimum speed of body i of C. MUST BE << C
-const double MAX_SPEED = 0.5; // The minimum speed of body i of C. MUST BE << C
+double G = 6.67430 * 0.000000000001;
+
+const double MIN_SPEED = 0.001; // The minimum speed of body i of C. MUST BE << C
+const double MAX_SPEED = 0.10; // The minimum speed of body i of C. MUST BE << C
 
 
 const int NUM_BODIES = 30;
@@ -26,12 +28,14 @@ int indexOfTrace = NUM_TRACES - 1;
 const int WALL_THICKNESS = 10;
 const uint32_t WALL_COLOUR = 0X0F00F000;
 
+
 int WIDTH = 1920;
 int HEIGHT = 1080;
 double EPSILON = 0.001; // simmulation step size. 1 == a second
 
 bool SHOWTEXT = true;
 
+uint64_t FRAMERATE = 100;
 
 double Q_rsqrt( double number )
 {
@@ -205,7 +209,7 @@ void makeNewBody(body* body){
     // uint32_t colour = wavelengthToHex(580);
     
 
-    body_init(body, M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
+    body_init(body, 1000000000000 * M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
 }
 
 void setupBodies(body* bodies, int num){
@@ -235,16 +239,39 @@ void setupBodyTraces(traceBody** traces, body* bodies){
     }
 }
 
+void newtonianGravity(body* bodies){
+    for (int i = 0; i < NUM_BODIES; i++){
+
+        double a_x = 0;
+        double a_y = 0;
+        for (int j = 0; j < NUM_BODIES; j++){
+            if (i != j){
+                double masses_G = bodies[j].mass*G;
+                double r_normal_factor = Q_rsqrt((bodies[j].pos[0] - bodies[i].pos[0])*(bodies[j].pos[0] - bodies[i].pos[0]) + (bodies[j].pos[1] - bodies[i].pos[1])*(bodies[j].pos[1] - bodies[i].pos[1]));
+                a_x += r_normal_factor * masses_G *(bodies[j].pos[0] - bodies[i].pos[0])/((bodies[j].pos[0] - bodies[i].pos[0])*(bodies[j].pos[0] - bodies[i].pos[0]) + (bodies[j].pos[1] - bodies[i].pos[1])*(bodies[j].pos[1] - bodies[i].pos[1]));
+                a_y += r_normal_factor * masses_G *(bodies[j].pos[1] - bodies[i].pos[1])/((bodies[j].pos[0] - bodies[i].pos[0])*(bodies[j].pos[0] - bodies[i].pos[0]) + (bodies[j].pos[1] - bodies[i].pos[1])*(bodies[j].pos[1] - bodies[i].pos[1]));
+
+            }
+        }
+    
+        
+        bodies[i].velocity[0] = bodies[i].velocity[0] + EPSILON * a_x;
+        bodies[i].velocity[1] = bodies[i].velocity[1] + EPSILON * a_y;
+        bodies[i].speed = pow((bodies[i].velocity[0]*bodies[i].velocity[0]) + (bodies[i].velocity[1] * bodies[i].velocity[1]), 1.0/2.0);
+    }
+
+
+}
+
 void updateBodies(body* bodies, int num){
     
     handelCollision(bodies, num);
+    newtonianGravity(bodies);
 
     for (int i = 0; i < num; i++){
-
-        // bodies[i].velocity[1] = bodies[i].velocity[1] + EPSILON * 9.81;
-
         bodies[i].pos[0] = bodies[i].pos[0] + EPSILON*bodies[i].velocity[0];
         bodies[i].pos[1] = bodies[i].pos[1] + EPSILON*bodies[i].velocity[1];
+
         relativisticDopplerEffect(&bodies[i]);
     }
 }
@@ -348,6 +375,7 @@ void closeFonts(TTF_Font** fonts){
 
 int main(int argc, char* argv[]){
     int kk = 0;
+    int jk = 0 ;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return -1;
@@ -430,16 +458,18 @@ int main(int argc, char* argv[]){
                 break;
             }
         }
-        if (kk == NUM_TRACES){
-        // 1. Update Traces
-            updateTraces(traces, bodies);
-            kk = 0;
+        for (int jjk = 0; jjk < ((((1.0/FRAMERATE) )/EPSILON) + 1); jjk++){
+            if (kk == NUM_TRACES){
+            // 1. Update Traces
+                updateTraces(traces, bodies);
+                kk = 0;
+            }
+
+            kk += 1;
+            // 2. Update Bodies
+            updateBodies(bodies, NUM_BODIES);
+
         }
-
-        kk += 1;
-        // 2. Update Bodies
-        updateBodies(bodies, NUM_BODIES);
-
         // 3. Draw the frame
         if (drawFrame(renderer, text_engine, fonts, bodies, traces) != 0){
             
@@ -454,9 +484,55 @@ int main(int argc, char* argv[]){
         }
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(framteRate);
+        SDL_Delay((int)((1.0/FRAMERATE) * 1000) - 10);
     }
 
+    // const Uint64 FRAME_NS      = SDL_NS_PER_SECOND / FRAMERATE;  // target time per rendered frame
+    // const double MAX_FRAME_DT  = 0.25;   // seconds; cap to avoid a death spiral (see below)
+    // const int    TRACE_INTERVAL = 100;   // physics steps between trace snapshots
+
+    // Uint64 previous    = SDL_GetTicksNS();
+    // double accumulator = 0.0;
+    // int    steps_since_trace = 0;
+    // bool   running     = true;
+
+    // while (running) {
+    //     Uint64 frame_start = SDL_GetTicksNS();
+
+    //     // Handle every pending event, not just one
+    //     while (SDL_PollEvent(&windowEvent)) {
+    //         if (windowEvent.type == SDL_EVENT_QUIT) running = false;
+    //     }
+
+    //     // How much real time passed since the last frame?
+    //     double elapsed = (double)(frame_start - previous) / SDL_NS_PER_SECOND;
+    //     previous = frame_start;
+    //     if (elapsed > MAX_FRAME_DT) elapsed = MAX_FRAME_DT;
+    //     accumulator += elapsed;
+
+    //     // Run exactly as many fixed steps as that real time covers
+    //     while (accumulator >= EPSILON) {
+    //         updateBodies(bodies, NUM_BODIES);
+
+    //         if (++steps_since_trace >= TRACE_INTERVAL) {
+    //             updateTraces(traces, bodies);
+    //             steps_since_trace = 0;
+    //         }
+    //         accumulator -= EPSILON;
+    //     }
+
+    //     if (drawFrame(renderer, text_engine, fonts, bodies, traces) != 0) {
+    //         running = false;           // fall through to the normal cleanup below
+    //         break;
+    //     }
+    //     SDL_RenderPresent(renderer);
+
+    //     // Sleep only for whatever is left of this frame's time budget
+    //     Uint64 frame_time = SDL_GetTicksNS() - frame_start;
+    //     if (frame_time < FRAME_NS) {
+    //         SDL_DelayNS(FRAME_NS - frame_time);
+    //     }
+    // }
     cleanBodies(bodies);
     cleanTraces(traces);
 
