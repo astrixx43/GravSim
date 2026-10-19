@@ -113,7 +113,7 @@ void boost(double *E, double* p_x, double* p_y, double V_x, double V_y, double V
     *p_y += k * V_y;
 }
 
-void realtivisticCollison(body* b1, body* b2){
+void relativisticCollison(body* b1, body* b2){
     double gamma_1 = calculateGamma(b1->speed);
     double gamma_2 = calculateGamma(b2->speed);
 
@@ -186,7 +186,7 @@ void handelCollision(body* bodies, int num){
         if (!checkWallCollision(&bodies[i])){
             for (int j = i + 1; j < num; j++){
                 if (checkBodyCollision(&bodies[i], &bodies[j])){
-                    realtivisticCollison(&bodies[i], &bodies[j]);
+                    relativisticCollison(&bodies[i], &bodies[j]);
                 }
             }
         }
@@ -261,6 +261,27 @@ void newtonianGravity(body* bodies){
     }
 
 
+}
+
+void relativisticEIHGravity(body* bodies){
+    double r_s[NUM_BODIES*NUM_BODIES];
+    double one_r_s_sqrd[NUM_BODIES*NUM_BODIES];
+
+    for (int i = 0; i<NUM_BODIES; i++){
+        for (int j = i + 1; j< NUM_BODIES; j++){
+            r_s[i] = pow((bodies[i].pos[1] - bodies[j].pos[1])*(bodies[i].pos[1] - bodies[j].pos[1]) + (bodies[i].pos[0] - bodies[j].pos[0])*(bodies[i].pos[0] - bodies[j].pos[0]), 1.0/2.0);
+            r_s[i+ j * NUM_BODIES] = r_s[i];
+            one_r_s_sqrd[i] = 1.0/r_s[i];
+            one_r_s_sqrd[i+ j * NUM_BODIES] = 1.0/r_s[i];
+        }
+    }
+
+    for (int i = 0; i<NUM_BODIES; i++){
+
+
+
+    }
+    
 }
 
 void updateBodies(body* bodies, int num){
