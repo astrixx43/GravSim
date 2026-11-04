@@ -1,6 +1,12 @@
 #include "bodies.h"
 #include "math.h"
+#include <stdlib.h>
 
+void setupGravitonList(gravitonList* gravitonList){
+    gravitonList->head = NULL;
+    gravitonList->next = NULL;
+
+}
 
 void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour){ 
     body->mass = mass;
@@ -16,6 +22,14 @@ void body_init(body* body, double mass, double x, double y, double v_x, double v
 
     body->rest_colour = colour;
     body->relative_colour = colour;
+
+    body->gravitonList = malloc(sizeof(gravitonList));
+    setupGravitonList(body->gravitonList);
+}
+
+void destroy_body(body* body){
+    free(body->gravitonList);
+    free(body);
 }
 
 void trace_init(traceBody* trace, body* body){ 

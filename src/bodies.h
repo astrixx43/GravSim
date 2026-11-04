@@ -7,8 +7,11 @@ typedef struct{
     uint64_t rest_colour;
     uint64_t relative_colour;
     int radius;
+    double momentum[2];
+    void* gravitonList;
 
 }body;
+
 
 typedef struct{
     double pos[2]; // Pos in x
@@ -16,6 +19,13 @@ typedef struct{
     int radius;
 
 }traceBody;
+
+typedef struct gravitonList{
+    body* head;
+    void* next;
+}gravitonList;
+
+void setupGravitonList(gravitonList* gravitonList);
 
 void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour);
 

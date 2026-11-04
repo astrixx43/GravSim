@@ -8,34 +8,46 @@
 
 #include "SDL3_gfxPrimitives.h"
 #include "SDL3_framerate.h"
+
 #include "src/bodies.h"
 #include "src/Wavelength_Rgb.h"
 
 #define TRACE_MAX_ALPHA 120  
 
-const double C =  1920.0 + 0 * 299792458.0;
+const double C =  .1*1920.0 + 0 * 299792458.0;
 const double C_SQUARED = C*C;
-double G = 6.67430 * 0.000000000001;
+const double ONE_C = 1/C;
+const double ONE_C_SQUARED = 1/C_SQUARED;
+
+double one_squareroot_C;
+
+double G =  10.0 * 6.67430 * 0.000000000001;
 
 const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
 const double MAX_SPEED = 0.2; // The minimum speed of body i of C. MUST BE << C
 
 
-const int NUM_BODIES = 10;
+const int NUM_BODIES = 2;
 const int NUM_TRACES = 10; // Set KK equal to this and set this to 4-6 give good lookinfg results
-int indexOfTrace = NUM_TRACES - 1;
 
+const double MIN_RADIUS = 10;
+const double MIN_RADIUS_SQUARED = MIN_RADIUS*MIN_RADIUS;
+
+int indexOfTrace = NUM_TRACES - 1;
+void (*grav_function)(body*);
 const int WALL_THICKNESS = 10;
 const uint32_t WALL_COLOUR = 0X0F00F000;
 
 
-int WIDTH = 1920;
-int HEIGHT = 1080;
+const int WIDTH = 1920;
+const int HEIGHT = 1080;
+double DIAGONAL_SQUARED = (WIDTH*WIDTH + HEIGHT*HEIGHT);
 double EPSILON = 0.001; // simmulation step size. 1 == a second
 
-bool SHOWTEXT = true;
+bool SHOWTEXT = false;
 
 uint64_t FRAMERATE = 100;
+
 
 double Q_rsqrt( double number )
 {
@@ -61,11 +73,11 @@ double Q_rsqrt( double number )
 }
 
 double calculateGamma(double speed){
-    return Q_rsqrt((double)( 1 - ((speed*speed)/C_SQUARED)));
+    return Q_rsqrt((double)( 1 - ((speed*speed)*ONE_C_SQUARED)));
 }
 
 double calculateGamma_alt(double speed_squared){
-    return Q_rsqrt((double)( 1 - ((speed_squared)/C_SQUARED)));
+    return Q_rsqrt((double)( 1 - ((speed_squared)*ONE_C_SQUARED)));
 }
 
 void relativisticDopplerEffect(body* body){
@@ -96,8 +108,12 @@ void relativisticDopplerEffect(body* body){
 void change_body_velocity(body* body, double v_x, double v_y){
     body->velocity[0] = v_x;
     body->velocity[1] = v_y;
+    
+    body->momentum[0] = v_x * body->mass;
+    body->momentum[1] = v_y * body->mass;
+
     body->speed = pow((body->velocity[0]*body->velocity[0]) + (body->velocity[1]*body->velocity[1]), 1.0/2.0);
-    relativisticDopplerEffect(body);
+
 }
 
 void boost(double *E, double* p_x, double* p_y, double V_x, double V_y, double V_squared, double gamma_V) {
@@ -113,7 +129,7 @@ void boost(double *E, double* p_x, double* p_y, double V_x, double V_y, double V
     *p_y += k * V_y;
 }
 
-void relativisticCollison(body* b1, body* b2){
+void relativisticMassiveCollison(body* b1, body* b2){
     double gamma_1 = calculateGamma(b1->speed);
     double gamma_2 = calculateGamma(b2->speed);
 
@@ -159,9 +175,57 @@ void relativisticCollison(body* b1, body* b2){
 
 }
 
+void relativisticGravitonOnMassiveCollison(body* b1, body* masslessBody){
+
+    double gamma_1 = calculateGamma(b1->speed);
+
+    double E_1 = gamma_1*b1->mass*C_SQUARED;
+    double E_2 = pow((masslessBody->momentum[0] * masslessBody->momentum[0]) + (masslessBody->momentum[1]*masslessBody->momentum[1]), 1.0/2.0) * C;
+
+    double p_1_x = gamma_1*b1->mass*b1->velocity[0];
+    double p_1_y = gamma_1*b1->mass*b1->velocity[1];
+
+    double p_2_x = masslessBody->momentum[0];
+    double p_2_y = masslessBody->momentum[1];
+
+    double One_E_total = 1 / (E_1 + E_2);
+    
+    double gamma_V = gamma_1 * (1 + (E_2/E_1));
+
+    double V_x = (p_1_x + p_2_x)/(gamma_V * b1->mass);
+    double V_y = (p_1_y + p_2_y)/(gamma_V * b1->mass);
+
+    change_body_velocity(b1, V_x, V_y);
+
+    // boost(&E_1, &p_1_x, &p_1_y, V_x, V_y, V_sqaured, gamma_V);
+    // // boost(&E_2, &p_2_x, &p_2_y, V_x, V_y, V_sqaured, gamma_V);
+
+    // double one_n = Q_rsqrt((b1->pos[0] - masslessBody->pos[0]) * (b1->pos[0] - masslessBody->pos[0]) + (b1->pos[1] - masslessBody->pos[1]) * (b1->pos[1] - masslessBody->pos[1]));
+    // double n_x = one_n * (masslessBody->pos[0] - b1->pos[0]);
+    // double n_y = one_n * (masslessBody->pos[1] - b1->pos[1]);
+    // double pn = p_1_x* n_x + p_1_y*n_y;
+
+    // // if (pn <= 0.0) return;  
+
+    // p_1_x -= 2 * pn * n_x;
+    // p_1_y -= 2 * pn * n_y;
+    
+    // // p_2_x += 2 * pn * n_x;  
+    // // p_2_y += 2 * pn * n_y;
+
+
+    // boost(&E_1, &p_1_x, &p_1_y, -1.0 * V_x, -1.0 * V_y, V_sqaured, gamma_V);
+    // // boost(&E_2, &p_2_x, &p_2_y, -1.0 * V_x, -1.0 * V_y, V_sqaured, gamma_V);
+
+    // change_body_velocity(b1, p_1_x * C_SQUARED / E_1,  p_1_y * C_SQUARED / E_1);
+    // // change_body_velocity(masslessBody, p_2_x * C_SQUARED / E_2, p_2_y * C_SQUARED / E_2);
+
+
+}
+
 int checkBodyCollision(body* b1, body*b2){
     double distance = pow((b1->pos[0] - b2->pos[0])*(b1->pos[0] - b2->pos[0]) + (b1->pos[1] - b2->pos[1])*(b1->pos[1] - b2->pos[1]), 1.0/2.0);
-    return distance <= b1->radius + b2->radius;
+    return distance <= (b1->radius + b2->radius);
 }
 
 int checkWallCollision(body* b){
@@ -179,14 +243,12 @@ int checkWallCollision(body* b){
     return hit;
 }
 
-void handelCollision(body* bodies, int num){
-
-
-    for (int i = 0; i < num; i++){
+void handelCollision(body* bodies){
+    for (int i = 0; i < NUM_BODIES; i++){
         if (!checkWallCollision(&bodies[i])){
-            for (int j = i + 1; j < num; j++){
+            for (int j = i + 1; j < NUM_BODIES; j++){
                 if (checkBodyCollision(&bodies[i], &bodies[j])){
-                    relativisticCollison(&bodies[i], &bodies[j]);
+                    relativisticMassiveCollison(&bodies[i], &bodies[j]);
                 }
             }
         }
@@ -195,13 +257,14 @@ void handelCollision(body* bodies, int num){
 }
 
 void makeNewBody(body* body){
-    int radius = (rand() % 100) + 15;
+    int radius = (rand() % 10) + 10;
+    radius = 20;
     
     double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH - radius) + (double)radius;
     double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT - radius) + (double)radius;
     double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
 
-    double v_total = (((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C;
+    double v_total = 0; //(((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C;
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
@@ -209,7 +272,7 @@ void makeNewBody(body* body){
     // uint32_t colour = wavelengthToHex(580);
     
 
-    body_init(body, 1000000000000 * M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
+    body_init(body, 100000000000.0 * M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
 }
 
 void setupBodies(body* bodies, int num){
@@ -263,6 +326,224 @@ void newtonianGravity(body* bodies){
 
 }
 
+void shootGravitons(body* b_emmitor, body* b_reciver){
+    
+    gravitonList* graviton = b_emmitor->gravitonList;
+    while(graviton->head != NULL){
+        graviton = graviton->next;
+    }
+
+    // double delT = 0;
+    double one_over_dist = Q_rsqrt((b_emmitor->pos[0] - b_reciver->pos[0])*(b_emmitor->pos[0] - b_reciver->pos[0]) + (b_emmitor->pos[1] - b_reciver->pos[1])*(b_emmitor->pos[1] - b_reciver->pos[1]));
+    
+    // double dist_squared = (b_emmitor->pos[0] - b_reciver->pos[0])*(b_emmitor->pos[0] - b_reciver->pos[0]) + (b_emmitor->pos[1] - b_reciver->pos[1])*(b_emmitor->pos[1] - b_reciver->pos[1]);
+    
+    graviton->head = malloc(sizeof(body));
+
+    double x_comp = (b_reciver->pos[0]  - b_emmitor->pos[0]) * one_over_dist;
+    double y_comp =  (b_reciver->pos[1] - b_emmitor->pos[1]) * one_over_dist;
+    
+    body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+    
+    graviton->head->momentum[0] = b_emmitor->pos[0];
+    graviton->head->momentum[1] = b_emmitor->pos[1];
+
+    graviton->next = malloc(sizeof(gravitonList));
+    setupGravitonList(graviton->next);
+    graviton = graviton->next;
+
+    // for (double theta = 0; theta < 2 * M_PI; theta+= .1){
+   
+    //     graviton->head = malloc(sizeof(body));
+
+    //     double x_comp = sin(theta);
+    //     double y_comp =  cos(theta);
+        
+    //     body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        
+    //     graviton->head->momentum[0] = b_emmitor->pos[0];
+    //     graviton->head->momentum[1] = b_emmitor->pos[1];
+
+    //     graviton->next = malloc(sizeof(gravitonList));
+    //     setupGravitonList(graviton->next);
+    //     graviton = graviton->next;
+    // }
+
+   
+
+    // graviton->next = malloc(sizeof(gravitonList));
+    // setupGravitonList(graviton->next);
+    // graviton = graviton->next;
+
+
+    // direct_theta = (direct_theta > 0) ? direct_theta : acos(y_comp);
+    // printf("%f\n", direct_theta);
+    
+    // double min_theta = acos(1 - (MIN_RADIUS_SQUARED*2.0/DIAGONAL_SQUARED));
+    
+    double delta_width = C;
+
+    double angle_gamma = atan2((delta_width + b_emmitor->radius), 1/one_over_dist);
+
+    double phi = atan2((b_reciver->pos[0]  - b_emmitor->pos[0]), (b_reciver->pos[1]  - b_emmitor->pos[1]));
+    
+    // double del_theta = (theta_step > .5)? theta_step : min_theta;
+    // del_theta = del_theta/2;
+
+    // printf("%f\n", theta_step);
+
+    double del_theta = 0.001;
+    for (double theta = -angle_gamma; theta < 0 ; theta += .05-del_theta){
+
+        graviton->head = malloc(sizeof(body));
+
+        double x_comp = sin(phi - theta); 
+        double y_comp = cos(phi - theta);       
+
+        body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        
+        graviton->head->momentum[0] = b_emmitor->pos[0];
+        graviton->head->momentum[1] = b_emmitor->pos[1];
+        
+        graviton->next = malloc(sizeof(gravitonList));
+        setupGravitonList(graviton->next);
+        graviton = graviton->next;
+        del_theta = del_theta * 3.0/4.0;
+    }
+    
+    double old_del_theta = .05+del_theta;
+    del_theta = 0.;
+    for (double theta = 0; theta < angle_gamma ; theta += old_del_theta-del_theta){
+
+        graviton->head = malloc(sizeof(body));
+
+        double x_comp = sin(phi - theta); 
+        double y_comp = cos(phi - theta);       
+
+        body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        
+        graviton->head->momentum[0] = b_emmitor->pos[0];
+        graviton->head->momentum[1] = b_emmitor->pos[1];
+        
+        graviton->next = malloc(sizeof(gravitonList));
+        setupGravitonList(graviton->next);
+        graviton = graviton->next;
+        del_theta = del_theta * 4.0/3.0;
+    }
+}
+
+void emmitGravitons(body* bodies){
+    for(int j = 0; j < NUM_BODIES; j++){
+        body* b_emmitor = &bodies[j];
+    
+        for(int i = 0; i < NUM_BODIES; i++){
+            if (&bodies[i] != b_emmitor){
+                shootGravitons(b_emmitor, &bodies[i]);
+            }
+        }
+    }
+    // double step_size = M_PI/1000;
+    // for (double theta = 0; theta < 2 * M_PI; theta +=step_size){
+    //     graviton->head = malloc(sizeof(body));
+
+    //     double x_comp = sin(theta);
+    //     double y_comp = cos(theta);
+        
+    //     body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+
+    //     graviton->next = malloc(sizeof(gravitonList));
+    //     setupGravitonList(graviton->next);
+    //     graviton = graviton->next;
+    // }
+
+}
+
+void updateGravitons(body* bodies){
+
+    for (int i = 0; i< NUM_BODIES; i++){
+        
+        gravitonList* graviton = (gravitonList*)bodies[i].gravitonList;
+
+        while (graviton != NULL && graviton->head != NULL)
+        {
+            if (checkWallCollision(graviton->head)){
+                free(graviton->head);
+                
+                if (graviton->next != NULL){
+                    graviton->head = ((gravitonList*)graviton->next)->head;
+                    graviton->next = ((gravitonList*)graviton->next)->next;
+
+                    graviton = graviton->next;
+                }else{
+                    graviton->head = NULL;
+                    graviton->next = NULL;
+                }
+
+            }else{
+
+                graviton->head->pos[0] = graviton->head->pos[0] + EPSILON*graviton->head->velocity[0];
+                graviton->head->pos[1] = graviton->head->pos[1] + EPSILON*graviton->head->velocity[1];
+                graviton = graviton->next;
+            }
+        }
+
+        if (graviton == NULL){
+            bodies[i].gravitonList = malloc(sizeof(gravitonList));
+            graviton = bodies[i].gravitonList;
+        }
+    }
+
+}
+
+void handleGravitonBodyCollision(body* b1, body* b_emmiter){
+
+    gravitonList* gravitons = (gravitonList*)b_emmiter->gravitonList;
+    int collided = 0;
+    while (gravitons != NULL && gravitons->head != NULL){
+        if (checkBodyCollision(b1, gravitons->head)){
+            if (!collided){
+                body* graviton_body = gravitons->head;
+                
+                double distance_sqrd = ((graviton_body->momentum[0]-b1->pos[0])*(graviton_body->momentum[0]-b1->pos[0])) + ((graviton_body->momentum[1] - b1->pos[1])*(graviton_body->momentum[1] - b1->pos[1]));
+                
+                double gravitational_momentum_coefficeint = G * b1->mass * b_emmiter->mass/ (distance_sqrd * C);
+
+                graviton_body->momentum[0] = gravitational_momentum_coefficeint * (graviton_body->momentum[0]-b1->pos[0]);
+                graviton_body->momentum[1] = gravitational_momentum_coefficeint * (graviton_body->momentum[1]-b1->pos[1]);
+
+                relativisticGravitonOnMassiveCollison(b1, graviton_body);
+                collided = 1;
+                
+            }else{
+                free(gravitons->head);
+                
+            }
+
+            if (gravitons->next != NULL){
+                gravitons->head = ((gravitonList*)(gravitons->next))->head;
+                gravitons->next = ((gravitonList*)(gravitons->next))->next;
+            }else{
+                gravitons->head = NULL;
+            }
+
+        }else{
+            gravitons = gravitons->next;
+        }
+    
+    }
+}
+
+void newtonianGravityWithRelevCollision(body* bodies){
+    for (int i = 0; i < NUM_BODIES; i++){
+        for(int j = 0; j < NUM_BODIES; j++){
+            if (i != j){
+                handleGravitonBodyCollision(&bodies[i], &bodies[j]);
+            }
+        }    
+    }
+    updateGravitons(bodies);
+}
+
 void relativisticEIHGravity(body* bodies){
     double r_s[NUM_BODIES*NUM_BODIES];
     double one_r_s_sqrd[NUM_BODIES*NUM_BODIES];
@@ -284,15 +565,16 @@ void relativisticEIHGravity(body* bodies){
     
 }
 
-void updateBodies(body* bodies, int num){
+void updateBodies(body* bodies){
     
-    handelCollision(bodies, num);
-    newtonianGravity(bodies);
+    handelCollision(bodies);
 
-    for (int i = 0; i < num; i++){
+    grav_function(bodies);
+
+
+    for (int i = 0; i < NUM_BODIES; i++){
         bodies[i].pos[0] = bodies[i].pos[0] + EPSILON*bodies[i].velocity[0];
         bodies[i].pos[1] = bodies[i].pos[1] + EPSILON*bodies[i].velocity[1];
-
         relativisticDopplerEffect(&bodies[i]);
     }
 }
@@ -322,10 +604,20 @@ void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font*
             printf("FAILED TO DRAW BODY");
         };
 
+        gravitonList* graviton = bodies[i].gravitonList;
+        while(graviton != NULL && graviton->head != NULL){
+            if (!filledCircleRGBA(renderer, graviton->head->pos[0], graviton->head->pos[1], graviton->head->radius, 00, 00, 00, 0XFF)){
+                printf("FAILED TO DRAW GRAVITON");
+                break;
+            };
+            graviton = graviton->next;
+            
+        }
+
         
         
         if (SHOWTEXT){
-            snprintf(body_str, sizeof(body_str), "(%.2fC, %.2fC)\0", bodies[i].velocity[0]/C, bodies[i].velocity[1]/C);
+            snprintf(body_str, sizeof(body_str), "(%.2fC, %.2fC)\0", bodies[i].velocity[0]*ONE_C, bodies[i].velocity[1]*ONE_C);
             fontSize = TTF_GetFontSize(fonts[i]);
             body_text = TTF_CreateText(text_engine, fonts[i], body_str, 0); 
             TTF_SetTextColor(body_text, 0XFF - (bodies[i].relative_colour >> 24) & 0X00FF, 0XFF - (bodies[i].relative_colour >> 16) & 0X00FF, 0XFF - (bodies[i].relative_colour >> 8)  & 0X00FF, (bodies[i].relative_colour) & 0X000000FF );
@@ -395,6 +687,7 @@ void closeFonts(TTF_Font** fonts){
 }
 
 int main(int argc, char* argv[]){
+
     int kk = 0;
     int jk = 0 ;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -454,6 +747,9 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
+    grav_function = newtonianGravityWithRelevCollision;
+    one_squareroot_C = Q_rsqrt(C);
+
     body* bodies = malloc(NUM_BODIES * sizeof(body));
     setupBodies(bodies, NUM_BODIES);
 
@@ -471,6 +767,8 @@ int main(int argc, char* argv[]){
     SDL_Event windowEvent;
 
     uint32_t framteRate = ((uint32_t)(EPSILON*1000.0) > 0)? (uint32_t)(EPSILON*1000.0) : 1 ;
+    
+    int mm = 0;
 
     while (true)
     {
@@ -488,7 +786,13 @@ int main(int argc, char* argv[]){
 
             kk += 1;
             // 2. Update Bodies
-            updateBodies(bodies, NUM_BODIES);
+            updateBodies(bodies);
+            
+            mm += 1;
+            if (grav_function == newtonianGravityWithRelevCollision && mm >= (MIN_RADIUS/(C*EPSILON))){
+                emmitGravitons(bodies);
+                mm = 0;
+            }
 
         }
         // 3. Draw the frame
@@ -556,13 +860,14 @@ int main(int argc, char* argv[]){
     // }
     cleanBodies(bodies);
     cleanTraces(traces);
-
-    closeFonts(fonts);
-    TTF_DestroyRendererTextEngine(text_engine);
+    if (SHOWTEXT){
+        closeFonts(fonts);
+        TTF_DestroyRendererTextEngine(text_engine);
+    }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     TTF_Quit();
     SDL_Quit();
     
-    return SDL_EVENT_QUIT;
+    return 0;
 }
