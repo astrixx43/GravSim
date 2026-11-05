@@ -14,14 +14,14 @@
 
 #define TRACE_MAX_ALPHA 120  
 
-const double C =  0.1*1920.0 + 0 * 299792458.0;
+const double C =  1920.0 + 0 * 299792458.0;
 const double C_SQUARED = C*C;
 const double ONE_C = 1/C;
 const double ONE_C_SQUARED = 1/C_SQUARED;
 
 double one_squareroot_C;
 
-double G =  10.0 * 6.67430 * 0.000000000001;
+double G = 100 * 6.67430 * 0.000000000001;
 
 const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
 const double MAX_SPEED = 0.2; // The minimum speed of body i of C. MUST BE << C
@@ -45,6 +45,8 @@ double DIAGONAL_SQUARED = (WIDTH*WIDTH + HEIGHT*HEIGHT);
 double EPSILON = 0.001; // simmulation step size. 1 == a second
 
 bool SHOWTEXT = false;
+
+bool SHOWGRAVITON = false;
 
 uint64_t FRAMERATE = 60;
 
@@ -268,7 +270,7 @@ void makeNewBody(body* body){
     double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT - radius) + (double)radius;
     double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
 
-    double v_total = 0; //(((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C;
+    double v_total = (((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C;
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
@@ -789,7 +791,7 @@ void renderTraces(SDL_Renderer* renderer, traceBody** traces){
 }
 
 void renderGravitons(SDL_Renderer* renderer, body* bodies){
-    int NUM_RINGS_SKIP = 100;
+    int NUM_RINGS_SKIP = 2;
     for (int i = 0; i< NUM_BODIES; i ++){
         gravitonNode* graviton = ((gravitonList*) bodies[i].gravitonList)->first;
         int j = 0;
@@ -824,7 +826,7 @@ int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font** f
 
     renderTraces(renderer, traces);
     renderBodies(renderer, text_engine, fonts, bodies);
-    // renderGravitons(renderer, bodies);
+    if (SHOWGRAVITON) renderGravitons(renderer, bodies);
     
     // Draw Walls
     if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) == 4)){
@@ -931,8 +933,8 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
-    grav_function = particleGravitonsWithRelevCollision;
-    // grav_function = waveGravitonsWithRelevCollision;
+    // grav_function = particleGravitonsWithRelevCollision;
+    grav_function = waveGravitonsWithRelevCollision;
     one_squareroot_C = Q_rsqrt(C);
 
     body* bodies = malloc(NUM_BODIES * sizeof(body));
