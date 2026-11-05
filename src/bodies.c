@@ -2,13 +2,20 @@
 #include "math.h"
 #include <stdlib.h>
 
-void setupGravitonList(gravitonList* gravitonList){
-    gravitonList->head = NULL;
-    gravitonList->next = NULL;
-
+void gravitonNode_init(gravitonNode* node){
+    node->node = NULL;
+    node->next = NULL;
+    node->prev = NULL;
+    node->max_distance = -1.0;
 }
 
-void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour){ 
+void setupGravitonList(gravitonList* gravitonList){
+    gravitonList->first = malloc(sizeof(gravitonNode));
+    gravitonList->last = NULL;
+    gravitonNode_init(gravitonList->first);
+}
+
+void body_init(body* body, double mass, double x, double y, double v_x, double v_y, double radius, uint64_t colour){ 
     body->mass = mass;
 
     body->pos[0] = x;
@@ -22,9 +29,12 @@ void body_init(body* body, double mass, double x, double y, double v_x, double v
 
     body->rest_colour = colour;
     body->relative_colour = colour;
-
-    body->gravitonList = malloc(sizeof(gravitonList));
-    setupGravitonList(body->gravitonList);
+    if (mass > 0){
+        body->gravitonList = malloc(sizeof(gravitonList));
+        setupGravitonList(body->gravitonList);
+    }else{
+        body->gravitonList = NULL;
+    }
 }
 
 void destroy_body(body* body){

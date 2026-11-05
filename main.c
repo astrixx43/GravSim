@@ -14,7 +14,7 @@
 
 #define TRACE_MAX_ALPHA 120  
 
-const double C =  .1*1920.0 + 0 * 299792458.0;
+const double C =  0.1*1920.0 + 0 * 299792458.0;
 const double C_SQUARED = C*C;
 const double ONE_C = 1/C;
 const double ONE_C_SQUARED = 1/C_SQUARED;
@@ -27,7 +27,7 @@ const double MIN_SPEED = 0.1; // The minimum speed of body i of C. MUST BE << C
 const double MAX_SPEED = 0.2; // The minimum speed of body i of C. MUST BE << C
 
 
-const int NUM_BODIES = 2;
+const int NUM_BODIES = 3;
 const int NUM_TRACES = 10; // Set KK equal to this and set this to 4-6 give good lookinfg results
 
 const double MIN_RADIUS = 10;
@@ -46,7 +46,7 @@ double EPSILON = 0.001; // simmulation step size. 1 == a second
 
 bool SHOWTEXT = false;
 
-uint64_t FRAMERATE = 100;
+uint64_t FRAMERATE = 60;
 
 
 double Q_rsqrt( double number )
@@ -228,6 +228,11 @@ int checkBodyCollision(body* b1, body*b2){
     return distance <= (b1->radius + b2->radius);
 }
 
+int checkWaveBodyCollision(body* wave, body* b1){
+    double distance = pow((b1->pos[0] - wave->pos[0])*(b1->pos[0] - wave->pos[0]) + (b1->pos[1] - wave->pos[1])*(b1->pos[1] - wave->pos[1]), 1.0/2.0);
+    return (distance < (b1->radius + wave->radius + C*EPSILON)) && distance > (b1->radius + wave->radius - C*EPSILON);
+}
+
 int checkWallCollision(body* b){
     int hit = 0;
     if ((b->pos[0] - b->radius <= 0 + WALL_THICKNESS/2 && b->velocity[0] < 0) ||
@@ -257,8 +262,7 @@ void handelCollision(body* bodies){
 }
 
 void makeNewBody(body* body){
-    int radius = (rand() % 10) + 10;
-    radius = 20;
+    double radius = ((((double)rand())/RAND_MAX) * 10) + MIN_RADIUS;
     
     double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH - radius) + (double)radius;
     double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT - radius) + (double)radius;
@@ -272,7 +276,7 @@ void makeNewBody(body* body){
     // uint32_t colour = wavelengthToHex(580);
     
 
-    body_init(body, 100000000000.0 * M_PI*(double)(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
+    body_init(body, 100000000000.0 * M_PI*(radius*radius), x_pos, y_pos, v_x, v_y, radius, colour);
 }
 
 void setupBodies(body* bodies, int num){
@@ -327,59 +331,31 @@ void newtonianGravity(body* bodies){
 }
 
 void shootGravitons(body* b_emmitor, body* b_reciver){
-    
-    gravitonList* graviton = b_emmitor->gravitonList;
-    while(graviton->head != NULL){
-        graviton = graviton->next;
-    }
+    gravitonList* gList = (gravitonList*)b_emmitor->gravitonList;
 
+
+    gravitonNode* graviton = (gList->last == NULL)? gList->first : gList->last;
     // double delT = 0;
     double one_over_dist = Q_rsqrt((b_emmitor->pos[0] - b_reciver->pos[0])*(b_emmitor->pos[0] - b_reciver->pos[0]) + (b_emmitor->pos[1] - b_reciver->pos[1])*(b_emmitor->pos[1] - b_reciver->pos[1]));
     
     // double dist_squared = (b_emmitor->pos[0] - b_reciver->pos[0])*(b_emmitor->pos[0] - b_reciver->pos[0]) + (b_emmitor->pos[1] - b_reciver->pos[1])*(b_emmitor->pos[1] - b_reciver->pos[1]);
     
-    graviton->head = malloc(sizeof(body));
+    graviton->node = malloc(sizeof(body));
 
     double x_comp = (b_reciver->pos[0]  - b_emmitor->pos[0]) * one_over_dist;
     double y_comp =  (b_reciver->pos[1] - b_emmitor->pos[1]) * one_over_dist;
     
-    body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+    body_init(graviton->node, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
     
-    graviton->head->momentum[0] = b_emmitor->pos[0];
-    graviton->head->momentum[1] = b_emmitor->pos[1];
+    graviton->node->momentum[0] = b_emmitor->pos[0];
+    graviton->node->momentum[1] = b_emmitor->pos[1];
 
-    graviton->next = malloc(sizeof(gravitonList));
-    setupGravitonList(graviton->next);
+    graviton->next = malloc(sizeof(gravitonNode));
+    gravitonNode_init(graviton->next);
+
     graviton = graviton->next;
 
-    // for (double theta = 0; theta < 2 * M_PI; theta+= .1){
-   
-    //     graviton->head = malloc(sizeof(body));
 
-    //     double x_comp = sin(theta);
-    //     double y_comp =  cos(theta);
-        
-    //     body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
-        
-    //     graviton->head->momentum[0] = b_emmitor->pos[0];
-    //     graviton->head->momentum[1] = b_emmitor->pos[1];
-
-    //     graviton->next = malloc(sizeof(gravitonList));
-    //     setupGravitonList(graviton->next);
-    //     graviton = graviton->next;
-    // }
-
-   
-
-    // graviton->next = malloc(sizeof(gravitonList));
-    // setupGravitonList(graviton->next);
-    // graviton = graviton->next;
-
-
-    // direct_theta = (direct_theta > 0) ? direct_theta : acos(y_comp);
-    // printf("%f\n", direct_theta);
-    
-    // double min_theta = acos(1 - (MIN_RADIUS_SQUARED*2.0/DIAGONAL_SQUARED));
     
     double delta_width = C;
 
@@ -395,18 +371,18 @@ void shootGravitons(body* b_emmitor, body* b_reciver){
     double del_theta = 0.001;
     for (double theta = -angle_gamma; theta < 0 ; theta += .05-del_theta){
 
-        graviton->head = malloc(sizeof(body));
+        graviton->node = malloc(sizeof(body));
 
         double x_comp = sin(phi - theta); 
         double y_comp = cos(phi - theta);       
 
-        body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        body_init(graviton->node, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
         
-        graviton->head->momentum[0] = b_emmitor->pos[0];
-        graviton->head->momentum[1] = b_emmitor->pos[1];
+        graviton->node->momentum[0] = b_emmitor->pos[0];
+        graviton->node->momentum[1] = b_emmitor->pos[1];
         
-        graviton->next = malloc(sizeof(gravitonList));
-        setupGravitonList(graviton->next);
+        graviton->next = malloc(sizeof(gravitonNode));
+        gravitonNode_init(graviton->next);
         graviton = graviton->next;
         del_theta = del_theta * 3.0/4.0;
     }
@@ -415,21 +391,52 @@ void shootGravitons(body* b_emmitor, body* b_reciver){
     del_theta = 0.;
     for (double theta = 0; theta < angle_gamma ; theta += old_del_theta-del_theta){
 
-        graviton->head = malloc(sizeof(body));
+        graviton->node = malloc(sizeof(body));
 
         double x_comp = sin(phi - theta); 
         double y_comp = cos(phi - theta);       
 
-        body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        body_init(graviton->node, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
         
-        graviton->head->momentum[0] = b_emmitor->pos[0];
-        graviton->head->momentum[1] = b_emmitor->pos[1];
+        graviton->node->momentum[0] = b_emmitor->pos[0];
+        graviton->node->momentum[1] = b_emmitor->pos[1];
         
-        graviton->next = malloc(sizeof(gravitonList));
-        setupGravitonList(graviton->next);
+        graviton->next = malloc(sizeof(gravitonNode));
+        gravitonNode_init(graviton->next);
         graviton = graviton->next;
         del_theta = del_theta * 4.0/3.0;
     }
+
+    gList->last = graviton;
+
+    // for (double theta = 0; theta < 2 * M_PI; theta+= .1){
+   
+    //     graviton->node = malloc(sizeof(body));
+
+    //     double x_comp = sin(theta);
+    //     double y_comp =  cos(theta);
+        
+    //     body_init(graviton->node, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+        
+    //     graviton->node->momentum[0] = b_emmitor->pos[0];
+    //     graviton->node->momentum[1] = b_emmitor->pos[1];
+
+    //     graviton->next = malloc(sizeof(gravitonNode));
+    //     gravitonNode_init(graviton->next);
+    //     graviton = graviton->next;
+    // }
+
+   
+
+    // graviton->next = malloc(sizeof(gravitonNode));
+    // gravitonNode_init(graviton->next);
+    // graviton = graviton->next;
+
+
+    // direct_theta = (direct_theta > 0) ? direct_theta : acos(y_comp);
+    // printf("%f\n", direct_theta);
+    
+    // double min_theta = acos(1 - (MIN_RADIUS_SQUARED*2.0/DIAGONAL_SQUARED));
 }
 
 void emmitGravitons(body* bodies){
@@ -444,15 +451,15 @@ void emmitGravitons(body* bodies){
     }
     // double step_size = M_PI/1000;
     // for (double theta = 0; theta < 2 * M_PI; theta +=step_size){
-    //     graviton->head = malloc(sizeof(body));
+    //     graviton->node = malloc(sizeof(body));
 
     //     double x_comp = sin(theta);
     //     double y_comp = cos(theta);
         
-    //     body_init(graviton->head, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
+    //     body_init(graviton->node, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C*x_comp, C*y_comp, 0, 0);
 
-    //     graviton->next = malloc(sizeof(gravitonList));
-    //     setupGravitonList(graviton->next);
+    //     graviton->next = malloc(sizeof(gravitonNode));
+    //     gravitonNode_init(graviton->next);
     //     graviton = graviton->next;
     // }
 
@@ -462,47 +469,56 @@ void updateGravitons(body* bodies){
 
     for (int i = 0; i< NUM_BODIES; i++){
         
-        gravitonList* graviton = (gravitonList*)bodies[i].gravitonList;
+        gravitonNode* graviton = ((gravitonList*)bodies[i].gravitonList)->first;
 
-        while (graviton != NULL && graviton->head != NULL)
+        while (graviton->node != NULL)
         {
-            if (checkWallCollision(graviton->head)){
-                free(graviton->head);
+            if (checkWallCollision(graviton->node)){
+                free(graviton->node);
                 
-                if (graviton->next != NULL){
-                    graviton->head = ((gravitonList*)graviton->next)->head;
-                    graviton->next = ((gravitonList*)graviton->next)->next;
-
+                if (((gravitonNode*)graviton->next)->node != NULL){
+                    if(graviton->prev == NULL){
+                        ((gravitonList*)bodies[i].gravitonList)->first = graviton->next;
+                    }else{
+                        ((gravitonNode*)graviton->prev)->next = graviton->next;
+                    }
+                    ((gravitonNode*)graviton->next)->prev = graviton->prev;
+                    gravitonNode* old_node = graviton;
+                    
                     graviton = graviton->next;
+                    free(old_node);
+
+
                 }else{
-                    graviton->head = NULL;
+
+                    graviton->node = NULL;
+                    free(graviton->next);
                     graviton->next = NULL;
+
+                    ((gravitonList*)bodies[i].gravitonList)->last = graviton;
                 }
 
             }else{
 
-                graviton->head->pos[0] = graviton->head->pos[0] + EPSILON*graviton->head->velocity[0];
-                graviton->head->pos[1] = graviton->head->pos[1] + EPSILON*graviton->head->velocity[1];
+                graviton->node->pos[0] = graviton->node->pos[0] + EPSILON*graviton->node->velocity[0];
+                graviton->node->pos[1] = graviton->node->pos[1] + EPSILON*graviton->node->velocity[1];
                 graviton = graviton->next;
             }
         }
 
-        if (graviton == NULL){
-            bodies[i].gravitonList = malloc(sizeof(gravitonList));
-            graviton = bodies[i].gravitonList;
-        }
     }
 
 }
 
 void handleGravitonBodyCollision(body* b1, body* b_emmiter){
 
-    gravitonList* gravitons = (gravitonList*)b_emmiter->gravitonList;
+    gravitonNode* gravitons = ((gravitonList*)b_emmiter->gravitonList)->first;
+
     int collided = 0;
-    while (gravitons != NULL && gravitons->head != NULL){
-        if (checkBodyCollision(b1, gravitons->head)){
+    while (gravitons->node != NULL){
+        if (checkBodyCollision(b1, gravitons->node)){
             if (!collided){
-                body* graviton_body = gravitons->head;
+                body* graviton_body = gravitons->node;
                 
                 double distance_sqrd = ((graviton_body->momentum[0]-b1->pos[0])*(graviton_body->momentum[0]-b1->pos[0])) + ((graviton_body->momentum[1] - b1->pos[1])*(graviton_body->momentum[1] - b1->pos[1]));
                 
@@ -514,16 +530,22 @@ void handleGravitonBodyCollision(body* b1, body* b_emmiter){
                 relativisticGravitonOnMassiveCollison(b1, graviton_body);
                 collided = 1;
                 
-            }else{
-                free(gravitons->head);
-                
             }
+            
+            free(gravitons->node);
+                
 
-            if (gravitons->next != NULL){
-                gravitons->head = ((gravitonList*)(gravitons->next))->head;
-                gravitons->next = ((gravitonList*)(gravitons->next))->next;
+            if (((gravitonNode*)gravitons->next)->node != NULL){
+
+                gravitons->node = ((gravitonNode*)(gravitons->next))->node;
+                gravitons->next = ((gravitonNode*)(gravitons->next))->next;
+
             }else{
-                gravitons->head = NULL;
+                gravitons->node = NULL;
+
+                free(gravitons->next);
+                gravitons->next = NULL;
+                ((gravitonList*)b_emmiter->gravitonList)->last = gravitons;
             }
 
         }else{
@@ -533,7 +555,7 @@ void handleGravitonBodyCollision(body* b1, body* b_emmiter){
     }
 }
 
-void newtonianGravityWithRelevCollision(body* bodies){
+void particleGravitonsWithRelevCollision(body* bodies){
     for (int i = 0; i < NUM_BODIES; i++){
         for(int j = 0; j < NUM_BODIES; j++){
             if (i != j){
@@ -542,6 +564,137 @@ void newtonianGravityWithRelevCollision(body* bodies){
         }    
     }
     updateGravitons(bodies);
+}
+
+void emmitWaveGravitons(body* bodies){
+    double corner[2];
+
+    for(int i = 0; i < NUM_BODIES; i++){
+        body* b_emmitor = &bodies[i];
+
+        gravitonNode* gravitons;
+        if (((gravitonList*)b_emmitor->gravitonList)->last == NULL){
+            gravitons = (gravitonNode*)((gravitonList*)b_emmitor->gravitonList)->first; 
+        }else{
+            gravitons = (gravitonNode*)((gravitonList*)b_emmitor->gravitonList)->last; 
+        }
+        
+        gravitons->node = malloc(sizeof(body));
+
+        body_init(gravitons->node, 0, bodies[i].pos[0], bodies[i].pos[1], 0, 0, bodies[i].radius, 0X000000FF); 
+        
+
+
+        if ((gravitons->node->pos[0] - WIDTH/2.0) < 0 ){
+            corner[0] = WIDTH;
+        }else{
+            corner[0] = 0;
+
+        }
+        
+        if ((gravitons->node->pos[1] - HEIGHT/2.0) < 0){                
+            corner[1] = HEIGHT;
+        }else{
+            corner[1] = 0;
+        }
+
+        gravitons->max_distance = pow((corner[0] - gravitons->node->pos[0])*(corner[0] - gravitons->node->pos[0]) + (corner[1] - gravitons->node->pos[1])*(corner[1] - gravitons->node->pos[1]), 1/2.0);
+        
+
+        gravitons->next = malloc(sizeof(gravitonNode));
+        
+        gravitonNode_init(gravitons->next);
+        ((gravitonNode*)gravitons->next)->prev = (void*)gravitons;
+
+        ((gravitonList*)b_emmitor->gravitonList)->last = gravitons->next;
+        
+    }
+
+}
+
+void handleWaveGravitonBodyCollision(body* b1, body* b_emmiter){
+
+    gravitonNode* gravitons = ((gravitonList*)b_emmiter->gravitonList)->first;
+
+
+    while (gravitons->node != NULL){
+        if (checkWaveBodyCollision(b1, gravitons->node)){
+
+            body* graviton_body = gravitons->node;
+            
+            double distance_sqrd = ((graviton_body->pos[0]-b1->pos[0])*(graviton_body->pos[0]-b1->pos[0])) + ((graviton_body->pos[1] - b1->pos[1])*(graviton_body->pos[1] - b1->pos[1]));
+            
+            double gravitational_momentum_coefficeint = G * b1->mass * b_emmiter->mass/ (distance_sqrd * C);
+
+            graviton_body->momentum[0] = gravitational_momentum_coefficeint * (graviton_body->pos[0]-b1->pos[0]);
+            graviton_body->momentum[1] = gravitational_momentum_coefficeint * (graviton_body->pos[1]-b1->pos[1]);
+
+            relativisticGravitonOnMassiveCollison(b1, graviton_body);
+
+            break;
+        }else{
+            gravitons = gravitons->next;
+        }
+    
+    }
+}
+
+void updateWaveGravitons(body* bodies){
+
+    for (int i = 0; i< NUM_BODIES; i++){
+        
+        gravitonNode* graviton = ((gravitonList*)bodies[i].gravitonList)->first;
+
+        while (graviton != NULL && graviton->node != NULL)
+        {
+
+            if (graviton->node->radius >= graviton->max_distance){
+                free(graviton->node);
+                
+                if (((gravitonNode*)graviton->next)->node != NULL){
+                    
+                    if(graviton->prev == NULL){
+                        ((gravitonList*)bodies[i].gravitonList)->first = graviton->next;
+                    }else{
+                        ((gravitonNode*)graviton->prev)->next = graviton->next;
+                    }
+
+                    ((gravitonNode*)graviton->next)->prev = graviton->prev;
+                    gravitonNode* old_node = graviton;
+                    graviton = graviton->next;
+                    free(old_node);
+
+                }else{
+                    graviton->node = NULL;
+
+                    free(graviton->next);
+
+                    graviton->next = NULL;
+                    graviton->max_distance = 0;
+                    ((gravitonList*)bodies[i].gravitonList)->last = graviton;
+
+                }
+
+            }else{
+
+                graviton->node->radius = graviton->node->radius + EPSILON*C;
+                graviton = graviton->next;
+            }
+        }
+
+    }
+
+}
+
+void waveGravitonsWithRelevCollision(body* bodies){
+    for (int i = 0; i < NUM_BODIES; i++){
+        for(int j = 0; j < NUM_BODIES; j++){
+            if (i != j){
+                handleWaveGravitonBodyCollision(&bodies[i], &bodies[j]);
+            }
+        }    
+    }
+    updateWaveGravitons(bodies);
 }
 
 void relativisticEIHGravity(body* bodies){
@@ -589,6 +742,7 @@ void updateTraces(traceBody** traces, body* bodies){
     indexOfTrace = (indexOfTrace + 1) % NUM_TRACES;
 }
 
+
 void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font** fonts, body* bodies){
     Uint32 c = 0;
     
@@ -599,23 +753,10 @@ void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, TTF_Font*
     for (int i = 0; i < NUM_BODIES; i++){
         c = bodies[i].relative_colour;
 
-
-        if (!filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)){
+        if (!filledCircleRGBA(renderer, bodies[i].pos[0], bodies[i].pos[1], (Sint16)bodies[i].radius, (c >> 24) & 0xFF, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)){
             printf("FAILED TO DRAW BODY");
         };
-
-        gravitonList* graviton = bodies[i].gravitonList;
-        while(graviton != NULL && graviton->head != NULL){
-            if (!filledCircleRGBA(renderer, graviton->head->pos[0], graviton->head->pos[1], graviton->head->radius, 00, 00, 00, 0XFF)){
-                printf("FAILED TO DRAW GRAVITON");
-                break;
-            };
-            graviton = graviton->next;
-            
-        }
-
-        
-        
+                
         if (SHOWTEXT){
             snprintf(body_str, sizeof(body_str), "(%.2fC, %.2fC)\0", bodies[i].velocity[0]*ONE_C, bodies[i].velocity[1]*ONE_C);
             fontSize = TTF_GetFontSize(fonts[i]);
@@ -647,6 +788,33 @@ void renderTraces(SDL_Renderer* renderer, traceBody** traces){
     }
 }
 
+void renderGravitons(SDL_Renderer* renderer, body* bodies){
+    int NUM_RINGS_SKIP = 100;
+    for (int i = 0; i< NUM_BODIES; i ++){
+        gravitonNode* graviton = ((gravitonList*) bodies[i].gravitonList)->first;
+        int j = 0;
+        
+        while (j < NUM_RINGS_SKIP && graviton != NULL && graviton->node != NULL){
+            graviton = graviton->next;
+            j += 1;
+        }
+        
+        while(graviton != NULL && graviton->node != NULL){
+            j = 0;
+
+            if (!circleRGBA(renderer, graviton->node->pos[0], graviton->node->pos[1], (Sint16)graviton->node->radius+MIN_RADIUS*EPSILON, 00, 00, 00, 0XFF)){
+                printf("FAILED TO DRAW GRAVITON");
+                break;
+            };
+            while (j < NUM_RINGS_SKIP && graviton != NULL && graviton->node != NULL){
+                graviton = graviton->next;
+                j += 1;
+            }
+            //graviton = graviton->next;
+        }
+    }
+}
+
 int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font** fonts, body* bodies, traceBody** traces){
     // Draw bacground colours
     if (!(SDL_SetRenderDrawColor(renderer, 20, 30, 60, 255) && SDL_RenderClear(renderer))){
@@ -656,6 +824,7 @@ int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font** f
 
     renderTraces(renderer, traces);
     renderBodies(renderer, text_engine, fonts, bodies);
+    // renderGravitons(renderer, bodies);
     
     // Draw Walls
     if (!(thickLineColor(renderer, 0, 0, WIDTH + WALL_THICKNESS/2, 0, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, WIDTH, 0, WIDTH, HEIGHT+ WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, HEIGHT, WIDTH + WALL_THICKNESS/2, HEIGHT, WALL_THICKNESS, WALL_COLOUR) + thickLineColor(renderer, 0, 0, 0, HEIGHT+WALL_THICKNESS/2, WALL_THICKNESS, WALL_COLOUR) == 4)){
@@ -666,6 +835,21 @@ int drawFrame(SDL_Renderer * renderer, TTF_TextEngine* text_engine, TTF_Font** f
 
 
     return 0;
+}
+
+int drawTextScreen(TTF_TextEngine* text_engine, TTF_Font* font){
+    char body_str[20];
+    snprintf(body_str, sizeof(body_str), "C = %.3f\0", C);
+    int fontSize = TTF_GetFontSize(font);
+    TTF_Text* body_text = TTF_CreateText(text_engine, font, body_str, 0); 
+    TTF_SetTextColor(body_text, 0xFF, 0x0F, 0xFF, 0xFF);
+    
+    if (!TTF_DrawRendererText(body_text, 0, 0)){
+        printf("FAILED TO DRAW TEXT: %s\n", SDL_GetError());
+        return -1;
+    }
+    TTF_DestroyText(body_text);
+    return 1;
 }
 
 void cleanBodies(body* bodies){
@@ -680,7 +864,7 @@ void cleanTraces(traceBody** traces){
 }
 
 void closeFonts(TTF_Font** fonts){
-    for(int f = 0; f< NUM_BODIES; f++){
+    for(int f = 0; f< NUM_BODIES + 1; f++){
         TTF_CloseFont(fonts[f]);
     }
     free(fonts);
@@ -725,7 +909,7 @@ int main(int argc, char* argv[]){
 
     if (SHOWTEXT){
         text_engine = TTF_CreateRendererTextEngine(renderer);
-        fonts = malloc(NUM_BODIES*sizeof(TTF_Font*));
+        fonts = malloc((NUM_BODIES+1)*sizeof(TTF_Font*));
     }
     
     if (SHOWTEXT && text_engine == NULL){
@@ -747,7 +931,8 @@ int main(int argc, char* argv[]){
         return -1;
     }
 
-    grav_function = newtonianGravityWithRelevCollision;
+    grav_function = particleGravitonsWithRelevCollision;
+    // grav_function = waveGravitonsWithRelevCollision;
     one_squareroot_C = Q_rsqrt(C);
 
     body* bodies = malloc(NUM_BODIES * sizeof(body));
@@ -762,22 +947,55 @@ int main(int argc, char* argv[]){
         TTF_SetFontStyle(fonts[f], TTF_STYLE_BOLD);
     } 
 
+    if (SHOWTEXT){
+        fonts[NUM_BODIES] = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 20);
+        TTF_SetFontStyle(fonts[NUM_BODIES], TTF_STYLE_BOLD);
+    }
  
 
     SDL_Event windowEvent;
 
     uint32_t framteRate = ((uint32_t)(EPSILON*1000.0) > 0)? (uint32_t)(EPSILON*1000.0) : 1 ;
     
-    int mm = 0;
+    double stepsPerSecond = 1.0/(EPSILON);
+    double framePerSecond = FRAMERATE;
 
+    double stepPerFrame = stepsPerSecond/(framePerSecond);
+
+    double nanosecondsPerFrame = 1000000000/framePerSecond;
+    
+    int mm = 0;
+    int ll = 0;
+    int numberOfStepsPassedSinceLastFrame = 0;
+    Uint64 time_since_last_draw = SDL_GetTicksNS();
+    Uint64 current_time = SDL_GetTicksNS();
+    Uint64 prev_time = SDL_GetTicksNS();
+    Uint64 elapsed_time = 0;
+
+
+    double frame_time_accumilator = 0.0;
+    double EP_NS = EPSILON * 1000000000;
+    
     while (true)
     {
-        if(SDL_PollEvent(&windowEvent)){
-            if (windowEvent.type == SDL_EVENT_QUIT){
-                break;
-            }
+    prev_time = current_time;
+    current_time = SDL_GetTicksNS();
+
+    elapsed_time = ((current_time - prev_time) > 250000000 )? 250000000 : (current_time - prev_time);
+    
+    frame_time_accumilator += elapsed_time;
+
+        // while(SDL_PollEvent(&windowEvent)){
+        //     if (windowEvent.type == SDL_EVENT_QUIT){
+        //         break;
+        //     }
+        // }
+        
+        if (SDL_PollEvent(&windowEvent) && windowEvent.type == SDL_EVENT_QUIT){
+            break;
         }
-        for (int jjk = 0; jjk < ((1.0 /(EPSILON + FRAMERATE)) + 1); jjk++){
+        
+        while (frame_time_accumilator > EP_NS){
             if (kk == NUM_TRACES){
             // 1. Update Traces
                 updateTraces(traces, bodies);
@@ -789,13 +1007,21 @@ int main(int argc, char* argv[]){
             updateBodies(bodies);
             
             mm += 1;
-            if (grav_function == newtonianGravityWithRelevCollision && mm >= (MIN_RADIUS/(C*EPSILON))){
+            if (grav_function == particleGravitonsWithRelevCollision && mm >= (MIN_RADIUS/(C*EPSILON))){
                 emmitGravitons(bodies);
                 mm = 0;
+            }else if (grav_function == waveGravitonsWithRelevCollision && mm >= (MIN_RADIUS/(C*EPSILON))){
+                emmitWaveGravitons(bodies);
+                mm = 0;
             }
-
+            numberOfStepsPassedSinceLastFrame += 1;
+            frame_time_accumilator -= EP_NS;
         }
+
         // 3. Draw the frame
+
+        ll += 1;
+
         if (drawFrame(renderer, text_engine, fonts, bodies, traces) != 0){
             
             closeFonts(fonts);
@@ -808,56 +1034,23 @@ int main(int argc, char* argv[]){
             return -1;
         }
 
+        // if ( SHOWTEXT && !drawTextScreen(text_engine, fonts[NUM_BODIES])){
+        //     closeFonts(fonts);
+        //     TTF_DestroyRendererTextEngine(text_engine);
+        //     SDL_DestroyRenderer(renderer);
+        //     SDL_DestroyWindow(window);
+        //     SDL_Quit();
+        //     cleanBodies(bodies);
+        //     cleanTraces(traces);
+        //     return -1;
+        // }
+
         SDL_RenderPresent(renderer);
-        SDL_Delay((int)((1.0/FRAMERATE) * 1000) - 10);
+
+        SDL_DelayPrecise((nanosecondsPerFrame - (SDL_GetTicksNS() - current_time) > 0 )? (nanosecondsPerFrame - (SDL_GetTicksNS() - current_time)) : 0);
+        numberOfStepsPassedSinceLastFrame = 0;
     }
 
-    // const Uint64 FRAME_NS      = SDL_NS_PER_SECOND / FRAMERATE;  // target time per rendered frame
-    // const double MAX_FRAME_DT  = 0.25;   // seconds; cap to avoid a death spiral (see below)
-    // const int    TRACE_INTERVAL = 100;   // physics steps between trace snapshots
-
-    // Uint64 previous    = SDL_GetTicksNS();
-    // double accumulator = 0.0;
-    // int    steps_since_trace = 0;
-    // bool   running     = true;
-
-    // while (running) {
-    //     Uint64 frame_start = SDL_GetTicksNS();
-
-    //     // Handle every pending event, not just one
-    //     while (SDL_PollEvent(&windowEvent)) {
-    //         if (windowEvent.type == SDL_EVENT_QUIT) running = false;
-    //     }
-
-    //     // How much real time passed since the last frame?
-    //     double elapsed = (double)(frame_start - previous) / SDL_NS_PER_SECOND;
-    //     previous = frame_start;
-    //     if (elapsed > MAX_FRAME_DT) elapsed = MAX_FRAME_DT;
-    //     accumulator += elapsed;
-
-    //     // Run exactly as many fixed steps as that real time covers
-    //     while (accumulator >= EPSILON) {
-    //         updateBodies(bodies, NUM_BODIES);
-
-    //         if (++steps_since_trace >= TRACE_INTERVAL) {
-    //             updateTraces(traces, bodies);
-    //             steps_since_trace = 0;
-    //         }
-    //         accumulator -= EPSILON;
-    //     }
-
-    //     if (drawFrame(renderer, text_engine, fonts, bodies, traces) != 0) {
-    //         running = false;           // fall through to the normal cleanup below
-    //         break;
-    //     }
-    //     SDL_RenderPresent(renderer);
-
-    //     // Sleep only for whatever is left of this frame's time budget
-    //     Uint64 frame_time = SDL_GetTicksNS() - frame_start;
-    //     if (frame_time < FRAME_NS) {
-    //         SDL_DelayNS(FRAME_NS - frame_time);
-    //     }
-    // }
     cleanBodies(bodies);
     cleanTraces(traces);
     if (SHOWTEXT){

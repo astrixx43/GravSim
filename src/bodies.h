@@ -6,7 +6,7 @@ typedef struct{
     double speed;
     uint64_t rest_colour;
     uint64_t relative_colour;
-    int radius;
+    double radius;
     double momentum[2];
     void* gravitonList;
 
@@ -16,17 +16,24 @@ typedef struct{
 typedef struct{
     double pos[2]; // Pos in x
     uint64_t colour;
-    int radius;
+    double radius;
 
 }traceBody;
 
-typedef struct gravitonList{
-    body* head;
+typedef struct gravitonNode{
+    body* node;
     void* next;
+    void* prev;
+    double max_distance;
+} gravitonNode;
+
+typedef struct gravitonList{
+    gravitonNode* first;
+    gravitonNode* last;
 }gravitonList;
 
-void setupGravitonList(gravitonList* gravitonList);
+void gravitonNode_init(gravitonNode* node);
 
-void body_init(body* body, double mass, double x, double y, double v_x, double v_y, int radius, uint64_t colour);
+void body_init(body* body, double mass, double x, double y, double v_x, double v_y, double radius, uint64_t colour);
 
 void trace_init(traceBody* trace, body* body);
