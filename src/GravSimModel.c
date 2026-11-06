@@ -14,6 +14,8 @@ double GRAVITATIONAL_CONSTANT;
 const double MIN_SPEED = 0.9; // The minimum speed of body i of C_speed. MUST BE << C_speed
 const double MAX_SPEED = 0.99; // The minimum speed of body i of C_speed. MUST BE << C_speed
 
+const double MIN_RADIUS = 10;
+
 double EPSILON_STEP;
 
 int BOX_WALL_THICKNESS;
@@ -637,7 +639,7 @@ void cleanBodies(GravSimModelManager* modelManager){
 }
 
 
-GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, double min_radius, int grav_type){
+GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, void (*notify_change_function)){
     GravSimModelManager* modelManager = malloc(sizeof(GravSimModelManager));
     modelManager->WIDTH= width;
 
@@ -673,7 +675,7 @@ GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, do
         modelManager->graviton_emmision_function = NULL;
     }
 
-    modelManager->MIN_RADIUS = min_radius;
+    modelManager->MIN_RADIUS = MIN_RADIUS;
 
 
     modelManager->num_bodies = num_bodies;
@@ -689,7 +691,7 @@ GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, do
 
 }
 
-void GraveSim_model_take_step(GravSimModelManager* modelManager){
+void GravSim_model_take_step(GravSimModelManager* modelManager){
     
     modelManager->gravity_update_function(modelManager->bodies, modelManager->num_bodies);
 
@@ -710,7 +712,7 @@ void GraveSim_model_take_step(GravSimModelManager* modelManager){
 
 }
 
-void GraveSim_model_Sim(GravSimModelManager* MM){
+void GravSim_clean(GravSimModelManager* MM){
     cleanBodies(MM);
     free(MM);
 }
