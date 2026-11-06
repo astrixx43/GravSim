@@ -10,6 +10,7 @@ typedef struct{
     double radius;
     double momentum[2];
     void* gravitonList;
+    double residual_step;
 
 }body;
 
@@ -26,8 +27,9 @@ typedef struct gravitonList{
     uint64_t count;
 }gravitonList;
 
+void particleGraviton_init(body* body, double x, double y, double v_x, double v_y, double C);
+void waveGraviton_init(body* body, double x, double y, double radius);
 void body_init(body* body, double mass, double x, double y, double v_x, double v_y, double radius, uint64_t colour);
 
 int push_graviton_to_list(gravitonList* gravitonList, body* graviton, double max_distance);
-
 gravitonNode* remove_graviton_from_list(gravitonList* gravitonList, gravitonNode* gNode);

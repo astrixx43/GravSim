@@ -13,42 +13,53 @@
 
 #include "src/GravSimViewBodies.h"
 
+
+/* Below Are all values that may be adjusted for your simulation.
+
+/* Simmulation Constants*/
+double EPSILON = 0.001; // Simmulation step size in second units. i.e EPSILON == 1 => every sim. update will tick the sim clock 1 second
+const double C =  1920.0 + 0 * 299792458.0; // The Constant of the speed of light
+double G =  6.67430 * 0.000000000001; // The Gravitational Constant
+
+const int NUM_BODIES = 2; // The number of massive body to be simmulated.
+const double MIN_SPEED = 0.2; // The minimum magnitude of the velocity of a body as a fraction of C. MUST BE << C_speed
+const double MAX_SPEED = 0.3; // The maximum magnitude of the velocity of a body as a fraction of C. MUST BE  > MIN_SPEED
+
+double MIN_RADIUS = 10; // Minimum radius of a massive body
+double MAX_RADIUS = 50; // Maximum radius of a massive body
+
+#define GRAV_TYPE 0 // 0 => Wave-Like Gravitons, 1 => Particled Gravitons, 2 => Newtonian Gravity. More to come...
+
+
+/* Visualizor Constants*/
+bool SHOWTEXT = true; // Display ANY text on screen or not. For best preformence turn all text false
+bool SHOWSPEED = false; // Display C normalized velocity values for each body. For best preformence turn all text false
+bool SHOWFPS = true; // Display true frames per second and sim's C value. For best preformence turn all text false
+
+bool SHOWGRAVITON = true; // Display gravtionso or not. Safe to be true for non-graviton/Newtonian gravity type. For best preformence turn false
+#define MAX_GRAVITONS_DRAWN 100 // Max number of gravitons to be drawn for each massive body. For particles, set low, < 70. For waves set 80
+#define GRAVITON_INTERVAL 20 // Number of gravitons to skip in drawing gravitons. For particles, set high, > 30. For waves set between 0 - 20
+
+const int NUM_TRACES = 10; // This value controls the total number of the tails of fast moving bodies. The higher the longer.
+#define TRACE_INTERVAL 7  // This value controles the length between each update of the tail of fast moving bodies. The higher the longer.
+
+uint64_t FRAMERATE = 60; // Framterate of simmulation. Keep in mind, the simulation is running in real time.
+
+
+/* You may Ignore The Rest ... */
 #define TRACE_MAX_ALPHA 120  
-
-const double C =  .01*1920.0 + 0 * 299792458.0;
-const double ONE_C = 1/C;
-double G =  6.67430 * 0.000000000001;
-
-const int NUM_BODIES = 2;
-const int NUM_TRACES = 10; // Set KK equal to this and set this to 4-6 give good lookinfg results
-
-const int WALL_THICKNESS = 10;
 const uint32_t WALL_COLOUR = 0X0F00F000;
+const int WALL_THICKNESS = 10;
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
-double EPSILON = 0.0001; // simmulation step size. 1 == a second
+int WIDTH = 1920/2;
+int HEIGHT = 1080/2;
+const double ONE_C = 1/C;
 
-bool SHOWTEXT = true;
+#define NUM_SEGMENTS 100 // How smooth gravtion's edges should be. The lower, the better for proformance
+double TRIGTABLE[NUM_SEGMENTS][2]; // A table of NUM_SEGMENTS many of [sin, cos] values form 0 to 2pi. Commpute once.
+#define NUM_FRAMES_TO_AVERAGE_OVER 60.0
+#define WINDOW_TYPE SDL_WINDOW_RESIZABLE
 
-bool SHOWSPEED = false;
-
-bool SHOWFPS = true;
-
-bool SHOWGRAVITON = true;
-
-uint64_t FRAMERATE = 60;
-
-#define GRAV_TYPE 1
-
-#define TRACE_INTERVAL 7
-#define MAX_GRAVITONS_DRAWN 100
-#define GRAVITON_INTERVAL 5
-#define NUM_SEGMENTS 100
-
-#define NUM_FRAMES_TO_AVERAGE 60.0
-
-double TRIGTABLE[NUM_SEGMENTS][2];
 
 
 void renderBodies(SDL_Renderer* renderer, TTF_TextEngine *text_engine, viewBodiesManager* VBM){
@@ -236,7 +247,7 @@ int main(){
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return -1;
     }
-    SDL_Window* window = SDL_CreateWindow("Hello SDL World", WIDTH, HEIGHT, SDL_WINDOW_BORDERLESS);
+    SDL_Window* window = SDL_CreateWindow("GravSim Visualizer", WIDTH, HEIGHT, WINDOW_TYPE);
 
     if (window == NULL){
         printf("SDL_CreateWindow Window didn't work: %s\n", SDL_GetError());
@@ -279,7 +290,7 @@ int main(){
     }
     
 
-    GravSimModelManager* model_manager =  initalize_Sim(NUM_BODIES, EPSILON, C, G, WIDTH, HEIGHT, WALL_THICKNESS, GRAV_TYPE , notifyChange);
+    GravSimModelManager* model_manager =  initalize_Sim(NUM_BODIES, EPSILON, C, G, WIDTH, HEIGHT, WALL_THICKNESS, GRAV_TYPE, MIN_SPEED, MAX_SPEED, MIN_RADIUS, MAX_RADIUS, notifyChange);
 
     viewBodiesManager* view_body_manager = viewBodiesManage_init(model_manager, NUM_TRACES, SHOWTEXT);
     setUpTrigTable();
@@ -308,7 +319,7 @@ int main(){
     int firstMemberOfSum = 0;
     int fps_avg_index = 0;
     bool ready_to_sub_avg_fps = 0;
-    double actualTimeBeteenFrames[(int)(NUM_FRAMES_TO_AVERAGE)];
+    double actualTimeBeteenFrames[(int)(NUM_FRAMES_TO_AVERAGE_OVER)];
     double averageFPS = 0;
     while (true)
     {
@@ -322,11 +333,19 @@ int main(){
         sumActualTimeBetweenFrames += elapsed_time;
         
         actualTimeBeteenFrames[fps_avg_index] = elapsed_time;
-        fps_avg_index = (fps_avg_index >= NUM_FRAMES_TO_AVERAGE)? 0 : fps_avg_index + 1;;
+        fps_avg_index = (fps_avg_index >= NUM_FRAMES_TO_AVERAGE_OVER)? 0 : fps_avg_index + 1;;
 
         if (SDL_PollEvent(&windowEvent) && windowEvent.type == SDL_EVENT_QUIT){
             break;
+        }else if(windowEvent.type == SDL_EVENT_WINDOW_RESIZED) {
+            int new_width = windowEvent.window.data1;
+            int new_height = windowEvent.window.data2;
+            GravSim_update_box_size(model_manager, new_width, new_height);
+            WIDTH = new_width;
+            HEIGHT = new_height;
+        
         }
+        // Update your viewport, camera matrices, or UI layout here
         
         while (frame_time_accumilator > EP_NS){
             
@@ -344,7 +363,7 @@ int main(){
             frame_time_accumilator -= EP_NS;
         
         }
-        averageFPS = NUM_FRAMES_TO_AVERAGE * 1000000000/sumActualTimeBetweenFrames;
+        averageFPS = NUM_FRAMES_TO_AVERAGE_OVER * 1000000000/sumActualTimeBetweenFrames;
 
         
         // 3. Draw the frame
@@ -373,16 +392,16 @@ int main(){
 
         }
 
-        if(ready_to_sub_avg_fps || fps_avg_index >= (NUM_FRAMES_TO_AVERAGE)){
+        if(ready_to_sub_avg_fps || fps_avg_index >= (NUM_FRAMES_TO_AVERAGE_OVER)){
             sumActualTimeBetweenFrames -= actualTimeBeteenFrames[firstMemberOfSum];
-            firstMemberOfSum = ((firstMemberOfSum) >= NUM_FRAMES_TO_AVERAGE)? 0 : firstMemberOfSum + 1;
+            firstMemberOfSum = ((firstMemberOfSum) >= NUM_FRAMES_TO_AVERAGE_OVER)? 0 : firstMemberOfSum + 1;
             ready_to_sub_avg_fps = 1;
         }
 
         
         // if (ready_to_sub_avg_fps && averageFPS < FRAMERATE/1.5){
         //     GravSim_change_grav_func(model_manager, 1);
-        // }else if (fps_avg_index >= (NUM_FRAMES_TO_AVERAGE) && GRAV_TYPE != 1 && GravSim_get_grav_type(model_manager) == 1 && averageFPS > FRAMERATE/1.5){
+        // }else if (fps_avg_index >= (NUM_FRAMES_TO_AVERAGE_OVER) && GRAV_TYPE != 1 && GravSim_get_grav_type(model_manager) == 1 && averageFPS > FRAMERATE/1.5){
         //     GravSim_change_grav_func(model_manager, 0);
         // }
 

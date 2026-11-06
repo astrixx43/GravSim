@@ -11,22 +11,17 @@ double C_speed;
 double C_SQUARED;
 double ONE_C_SQUARED;
 double GRAVITATIONAL_CONSTANT;
-
-const double MIN_SPEED = 0.9; // The minimum speed of body i of C_speed. MUST BE << C_speed
-const double MAX_SPEED = 0.99; // The minimum speed of body i of C_speed. MUST BE << C_speed
-
-const double MIN_RADIUS = 10;
-
 double EPSILON_STEP;
-
 int BOX_WALL_THICKNESS;
-
 int WIDTH_OF_BOX;
 int HEIGHT_OF_BOX;
-
-
 double GRAVITON_PULSE_PERIOD;
 
+
+double _MIN_SPEED; // The minimum speed of body i of C_speed. MUST BE << C_speed
+double _MAX_SPEED;// The maximum speed of body i of C_speed. MUST BE > _MIN_SPEED
+double _MIN_RADIUS;
+double _MAX_RADIUS;
 
 
 float fast_inverse_sqrt(float val) {
@@ -291,13 +286,13 @@ void handelCollision(GravSimModelManager* modelManager){
 }
 
 void makeNewBody(body* body, GravSimModelManager* modelManager){
-    double radius = ((((double)rand())/RAND_MAX) * 10) + modelManager->MIN_RADIUS;
+    double radius = ((((double)rand())/RAND_MAX) * (_MAX_RADIUS - _MIN_RADIUS)) + modelManager->MIN_RADIUS;
     
     double x_pos = ((double)rand()/(double)RAND_MAX) * (double)(WIDTH_OF_BOX - radius) + (double)radius;
     double y_pos = ((double)rand()/(double)RAND_MAX) * (double)(HEIGHT_OF_BOX - radius) + (double)radius;
     double theta = ((double)rand()/(double)RAND_MAX) * 2.0f * (double)(M_PI);
 
-    double v_total = (((double)rand()/(double)RAND_MAX) * (MAX_SPEED- MIN_SPEED) +  MIN_SPEED) * C_speed;
+    double v_total = (((double)rand()/(double)RAND_MAX) * (_MAX_SPEED- _MIN_SPEED) +  _MIN_SPEED) * C_speed;
     double v_x =  v_total * cos(theta);
     double v_y = v_total * sin(theta);
 
@@ -558,7 +553,7 @@ void emmitWaveGravitons(body* bodies, int num_bodies){
         body* b_emmitor = &bodies[i];
 
         body* graviton = malloc(sizeof(body));
-        waveGraviton_init(graviton, 0, bodies[i].pos[0], bodies[i].pos[1], 0, 0, bodies[i].radius, 0X000000FF); 
+        waveGraviton_init(graviton, bodies[i].pos[0], bodies[i].pos[1], bodies[i].radius); 
         
         if ((graviton->pos[0] - WIDTH_OF_BOX/2.0) < 0 ){
             corner[0] = WIDTH_OF_BOX;
@@ -802,32 +797,42 @@ int GravSim_get_grav_type(GravSimModelManager* modelManager){
     }
 }
 
+void GravSim_update_box_size(GravSimModelManager* modelManager, double new_width, double new_height){
+    WIDTH_OF_BOX = new_width;
+    HEIGHT_OF_BOX = new_height;
+    modelManager->WIDTH= new_width;
+    modelManager->HEIGHT = new_width;
+}
 
-GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, void (*notify_observers_function)){
+GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, double min_speed, double max_speed, double min_radius, double max_radius,void (*notify_observers_function)){
     GravSimModelManager* modelManager = malloc(sizeof(GravSimModelManager));
-    modelManager->WIDTH= width;
 
-    WIDTH_OF_BOX = width;
-    HEIGHT_OF_BOX = height;
+    GravSim_update_box_size(modelManager, width, height);
+
     BOX_WALL_THICKNESS = thickness;
 
-    // modelManager->notify_observers_function = notify_observers_function;
-
-    modelManager->HEIGHT = height;
+    
+    EPSILON_STEP = epsilon; // simmulation step size. 1 == a second
     modelManager->EPSILON = epsilon;
 
-    EPSILON_STEP = epsilon; // simmulation step size. 1 == a second
     C_speed = C;
     C_SQUARED = C*C;
     ONE_C_SQUARED = 1/C_SQUARED;
+
+    _MIN_SPEED = min_speed; // The minimum speed of body i of C_speed. MUST BE << C_speed
+    _MAX_SPEED = max_speed;// The maximum speed of body i of C_speed. MUST BE > _MIN_SPEED
+    _MIN_RADIUS = min_radius;
+    _MAX_RADIUS = max_radius;
     
+    modelManager->notify_observers_function = notify_observers_function;
+   
     modelManager->C = C;
     modelManager->G = G;
 
     GRAVITATIONAL_CONSTANT = G;
 
     GravSim_change_grav_func(modelManager, grav_type);
-    modelManager->MIN_RADIUS = MIN_RADIUS;
+    modelManager->MIN_RADIUS = _MIN_RADIUS;
 
 
     modelManager->num_bodies = num_bodies;
@@ -835,9 +840,9 @@ GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, do
     modelManager->bodies = malloc(modelManager->num_bodies * sizeof(body));
     setupBodies(modelManager);
 
-    modelManager->GRAVITON_PULSE_PERIOD = modelManager->MIN_RADIUS/(C_speed);
+    modelManager->GRAVITON_PULSE_PERIOD = _MIN_RADIUS/(C_speed);
     
-    GRAVITON_PULSE_PERIOD = 1;//modelManager->MIN_RADIUS/(C_speed);
+    GRAVITON_PULSE_PERIOD = 1;//modelManager->_MIN_RADIUS/(C_speed);
 
     modelManager->time_since_last_pulse = 0;
 

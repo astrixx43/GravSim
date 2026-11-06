@@ -22,6 +22,43 @@ void setupGravitonList(gravitonList* gravitonList){
     gravitonList->count = 0;
 }
 
+void particleGraviton_init(body* body, double x, double y, double v_x, double v_y,double C){
+    body->mass = 0;
+
+    body->pos[0] = x;
+    body->pos[1] = y;
+
+    body->velocity[0] = v_x;
+    body->velocity[1] = v_y;
+    body->speed = C;
+
+
+    body->radius = 0; 
+    body->rest_colour = 0;
+    body->relative_colour = 0;
+    body->gravitonList = NULL;
+}
+
+void waveGraviton_init(body* body, double x, double y, double radius){
+    body->mass = 0;
+
+    body->pos[0] = x;
+    body->pos[1] = y;
+
+    body->velocity[0] = 0;
+    body->velocity[1] = 0;
+
+
+    body->speed = 0;
+
+
+    body->radius = radius; 
+
+    body->rest_colour = 0;
+    body->relative_colour = 0;
+    body->gravitonList = NULL;
+}
+
 void body_init(body* body, double mass, double x, double y, double v_x, double v_y, double radius, uint64_t colour){ 
     body->mass = mass;
 
@@ -30,18 +67,18 @@ void body_init(body* body, double mass, double x, double y, double v_x, double v
 
     body->velocity[0] = v_x;
     body->velocity[1] = v_y;
-    body->speed = pow((v_x*v_x) + (v_y*v_y), 1.0/2.0);
+    body->speed = pow((v_x * v_x) + (v_y*v_y), 1.0/2.0);
 
     body->radius = radius; 
 
     body->rest_colour = colour;
     body->relative_colour = colour;
-    if (mass > 0){
-        body->gravitonList = malloc(sizeof(gravitonList));
-        setupGravitonList(body->gravitonList);
-    }else{
-        body->gravitonList = NULL;
-    }
+
+    body->speed = pow((v_x*v_x) + (v_y*v_y), 1.0/2.0);
+    body->gravitonList = malloc(sizeof(gravitonList));
+    setupGravitonList(body->gravitonList);
+
+    body->residual_step = 0.0;
 }
 
 void destroy_body(body* body){
