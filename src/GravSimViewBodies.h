@@ -32,6 +32,9 @@ typedef struct{
 
 }viewBodiesManager;
 
+
 viewBodiesManager* viewBodiesManage_init(GravSimModelManager* MM, int num_traces, int SHOWTEXT);
+void GravSim_change_grav_func(GravSimModelManager* modelManager, int grav_type);
+int GravSim_get_grav_type(GravSimModelManager* modelManager);
 void GravSimViewBodies_updateTraces(viewBodiesManager* VBM);
 void GravSimViewBodies_end_bodyView(viewBodiesManager* VBM);

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <xmmintrin.h>
 #include <string.h>
 #include <math.h>
 
@@ -24,10 +25,25 @@ int WIDTH_OF_BOX;
 int HEIGHT_OF_BOX;
 
 
+double GRAVITON_PULSE_PERIOD;
+
+
+
+float fast_inverse_sqrt(float val) {
+    // Pack the float into an XMM register (__m128)
+    __m128 input = _mm_set_ss(val);
+    
+    // Execute rsqrtss approximation on the low 32 bits
+    __m128 result = _mm_rsqrt_ss(input);
+    
+    // Extract the float result from the XMM register
+    return _mm_cvtss_f32(result);
+}
 
 
 double Q_rsqrt( double number )
-{
+{   
+    return fast_inverse_sqrt(number);
     union {
         double f;
         uint64_t i;
@@ -48,6 +64,7 @@ double Q_rsqrt( double number )
 
     return conv.f;
 }
+
 
 double calculateGamma(double speed){
     return Q_rsqrt((double)( 1 - ((speed*speed)*ONE_C_SQUARED)));
@@ -205,7 +222,7 @@ int checkBodyCollision(body* b1, body*b2){
 
 int checkWaveBodyCollision(body* wave, body* b1){
     double distance_sqrd = (b1->pos[0] - wave->pos[0])*(b1->pos[0] - wave->pos[0]) + (b1->pos[1] - wave->pos[1])*(b1->pos[1] - wave->pos[1]);
-    return (distance_sqrd < ((b1->radius + wave->radius + C_speed*EPSILON_STEP)*(b1->radius + wave->radius + C_speed*EPSILON_STEP))) && distance_sqrd > ((b1->radius + wave->radius - C_speed*EPSILON_STEP) * (b1->radius + wave->radius - C_speed*EPSILON_STEP));
+    return (distance_sqrd < ((b1->radius + wave->radius + GRAVITON_PULSE_PERIOD*C_speed)*(b1->radius + wave->radius + GRAVITON_PULSE_PERIOD*C_speed))) && distance_sqrd > ((b1->radius + wave->radius - GRAVITON_PULSE_PERIOD*C_speed) * (b1->radius + wave->radius - GRAVITON_PULSE_PERIOD*C_speed));
 }
 
 int checkWallCollision(body* b){
@@ -220,6 +237,22 @@ int checkWallCollision(body* b){
         change_body_velocity(b, b->velocity[0], -b->velocity[1]);
         hit = 1;
     }
+
+    //     int hit = 0;
+    // if ((b->pos[0] - b->radius <= 0 + BOX_WALL_THICKNESS/2 && b->velocity[0] < 0) ||
+    //     (b->pos[0] + b->radius >= WIDTH_OF_BOX - BOX_WALL_THICKNESS/2 && b->velocity[0] > 0)) {
+    //     b->velocity[0] = -1* b->velocity[0];
+    //     hit = 1;
+    // }
+    // if ((b->pos[1] - b->radius <= 0 + BOX_WALL_THICKNESS/2 && b->velocity[1] < 0) ||
+    //     (b->pos[1] + b->radius >= HEIGHT_OF_BOX - BOX_WALL_THICKNESS/2 && b->velocity[1] > 0)) {
+    //     b->velocity[1] = -1 * b->velocity[1];
+    //     hit = 1;
+    // }
+    
+    // if(hit) change_body_velocity(b, b->velocity[0], b->velocity[1]);
+    
+    // return hit;
     return hit;
 }
 
@@ -324,8 +357,8 @@ void shootGravitons(body* b_emmitor, body* b_reciver){
 
     double x_comp = (b_reciver->pos[0]  - b_emmitor->pos[0]) * one_over_dist;
     double y_comp =  (b_reciver->pos[1] - b_emmitor->pos[1]) * one_over_dist;
-    
-    body_init(graviton, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, 0, 0);
+            
+    particleGraviton_init(graviton, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, C_speed);
     
     graviton->momentum[0] = b_emmitor->pos[0];
     graviton->momentum[1] = b_emmitor->pos[1];
@@ -346,8 +379,9 @@ void shootGravitons(body* b_emmitor, body* b_reciver){
         double y_comp = cos(phi - theta);
 
         graviton = malloc(sizeof(body));
-        body_init(graviton, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, 0, 0);
-        
+            
+        particleGraviton_init(graviton, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, C_speed);
+            
         graviton->momentum[0] = b_emmitor->pos[0];
         graviton->momentum[1] = b_emmitor->pos[1];
         
@@ -365,8 +399,9 @@ void shootGravitons(body* b_emmitor, body* b_reciver){
         double y_comp = cos(phi - theta);       
 
         graviton = malloc(sizeof(body));
-        body_init(graviton, 0, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, 0, 0);
-        
+            
+        particleGraviton_init(graviton, b_emmitor->pos[0] + (b_emmitor->radius * x_comp), b_emmitor->pos[1] + (b_emmitor->radius * y_comp), C_speed*x_comp, C_speed*y_comp, C_speed);
+    
         graviton->momentum[0] = b_emmitor->pos[0];
         graviton->momentum[1] = b_emmitor->pos[1];
         
@@ -429,7 +464,7 @@ void emmitParticleGravitons(body* bodies, int num_bodies){
 
 }
 
-void handleGravitonBodyCollision(body* b1, body* b_emmiter){
+void handleParticleGravitonBodyCollision(body* b1, body* b_emmiter){
 
     gravitonNode* gravitons = ((gravitonList*)b_emmiter->gravitonList)->first;
 
@@ -460,11 +495,56 @@ void handleGravitonBodyCollision(body* b1, body* b_emmiter){
     }
 }
 
+void handleGravitonBodyCollision(body* b1, body* b_emmiter){
+
+    gravitonNode* gravitons = ((gravitonList*)b_emmiter->gravitonList)->first;
+
+    int collided = 0;
+    int waved = 0;
+
+    while (gravitons->node != NULL){
+        if (!waved && gravitons->node->speed == 0 && checkWaveBodyCollision(b1, gravitons->node)){
+            
+            body* graviton_body = gravitons->node;
+            
+            double distance_sqrd = ((graviton_body->pos[0]-b1->pos[0])*(graviton_body->pos[0]-b1->pos[0])) + ((graviton_body->pos[1] - b1->pos[1])*(graviton_body->pos[1] - b1->pos[1]));
+            
+            double gravitational_momentum_coefficeint = GRAVITATIONAL_CONSTANT * b1->mass * b_emmiter->mass/(distance_sqrd * C_speed);
+
+            graviton_body->momentum[0] = gravitational_momentum_coefficeint * (graviton_body->pos[0]-b1->pos[0]);
+            graviton_body->momentum[1] = gravitational_momentum_coefficeint * (graviton_body->pos[1]-b1->pos[1]);
+            waved = 1;
+            relativisticGravitonOnMassiveCollison(b1, graviton_body);
+
+        }else if(gravitons->node->speed == C_speed && checkBodyCollision(b1, gravitons->node)){
+                if (!collided){
+                    body* graviton_body = gravitons->node;
+                    
+                    double distance_sqrd = ((graviton_body->momentum[0]-b1->pos[0])*(graviton_body->momentum[0]-b1->pos[0])) + ((graviton_body->momentum[1] - b1->pos[1])*(graviton_body->momentum[1] - b1->pos[1]));
+                    
+                    double gravitational_momentum_coefficeint = GRAVITATIONAL_CONSTANT * b1->mass * b_emmiter->mass/ (distance_sqrd * C_speed);
+
+                    graviton_body->momentum[0] = gravitational_momentum_coefficeint * (graviton_body->momentum[0]-b1->pos[0]);
+                    graviton_body->momentum[1] = gravitational_momentum_coefficeint * (graviton_body->momentum[1]-b1->pos[1]);
+
+                    relativisticGravitonOnMassiveCollison(b1, graviton_body);
+                    collided = 1;
+                }
+
+                gravitons = remove_graviton_from_list(b_emmiter->gravitonList, gravitons);
+    
+        }else{
+            gravitons = gravitons->next;
+        }
+    
+    }
+}
+
 void particleGravitonsWithRelevCollision(body* bodies, int num_bodies){
     for (int i = 0; i < num_bodies; i++){
         for(int j = 0; j < num_bodies; j++){
             if (i != j){
-                handleGravitonBodyCollision(&bodies[i], &bodies[j]);
+                handleParticleGravitonBodyCollision(&bodies[i], &bodies[j]);
             }
         }    
     }
@@ -478,7 +558,7 @@ void emmitWaveGravitons(body* bodies, int num_bodies){
         body* b_emmitor = &bodies[i];
 
         body* graviton = malloc(sizeof(body));
-        body_init(graviton, 0, bodies[i].pos[0], bodies[i].pos[1], 0, 0, bodies[i].radius, 0X000000FF); 
+        waveGraviton_init(graviton, 0, bodies[i].pos[0], bodies[i].pos[1], 0, 0, bodies[i].radius, 0X000000FF); 
         
         if ((graviton->pos[0] - WIDTH_OF_BOX/2.0) < 0 ){
             corner[0] = WIDTH_OF_BOX;
@@ -536,6 +616,15 @@ void waveGravitonsWithRelevCollision(body* bodies, int num_bodies){
     }
 }
 
+void gravitionRelativeCollision(body* bodies, int num_bodies){
+    for (int i = 0; i < num_bodies; i++){
+        for(int j = 0; j < num_bodies; j++){
+            if (i != j){
+                handleGravitonBodyCollision(&bodies[i], &bodies[j]);
+            }
+        }    
+    }
+}
 
 void relativisticEIHGravity(GravSimModelManager* modelManager){
     
@@ -623,29 +712,106 @@ void updateWaveGravitons(body* bodies, int num_bodies, double C){
 
 }
 
-void newtonianGravityUpdate(body* bodies, int num_bodies, double C){
-    bodies;
-    num_bodies;
-    C;
-    return; //Newtonian physics doesnt have gravitons... duh
+void updategraviton(body* bodies, int num_bodies, double C){
+    
+    for (int i = 0; i< num_bodies; i++){
+        
+        gravitonNode* gNode = ((gravitonList*)bodies[i].gravitonList)->first;
+
+        while (gNode->node != NULL)
+        {
+            if( gNode->node->speed == C_speed){
+                if (checkWallCollision(gNode->node)){
+                    gNode = remove_graviton_from_list((gravitonList*)bodies[i].gravitonList, gNode); // Remove this node and set it to the next node
+
+                }else{
+
+                    gNode->node->pos[0] = gNode->node->pos[0] + EPSILON_STEP*gNode->node->velocity[0];
+                    gNode->node->pos[1] = gNode->node->pos[1] + EPSILON_STEP*gNode->node->velocity[1];
+                    gNode = gNode->next;
+                }
+            }else{
+
+                if ((gNode->node->radius * gNode->node->radius) >= gNode->max_distance){ //TODO: Clean up max_distance Logic, currently it is equally ture max distance squared
+                    gNode = remove_graviton_from_list((gravitonList*)bodies[i].gravitonList, gNode);          
+
+                    // }else if (checkAndHandleWaveWallCollision(gNode->node) == 1){
+                    
+                    //     gNode = remove_graviton_from_list((gravitonList*)bodies[i].gravitonList, gNode);
+                
+                }else{
+                    gNode->node->radius = gNode->node->radius + EPSILON_STEP*C;
+                    gNode = gNode->next;
+                }
+            }
+        }
+
+    }
+
 }
 
 body* getBodies(GravSimModelManager* modelManager){
     return modelManager->bodies;
 }
 
+void cleanGravitonList(gravitonList* gravitonList){
+    gravitonNode* gNode = gravitonList->first;
+    
+    for (int i = 0; i<gravitonList->count; i++){
+        free(gNode->node);
+        free(gNode->prev);
+        gNode = gNode->next;
+    }
+
+    free(gNode);
+}
+
 void cleanBodies(GravSimModelManager* modelManager){
+    for (int i = 0; i<modelManager->num_bodies; i++){
+        cleanGravitonList(modelManager->bodies[i].gravitonList);
+        
+    }
     free(modelManager->bodies);
 }
 
+void GravSim_change_grav_func(GravSimModelManager* modelManager, int grav_type){
+    
+    if (grav_type == 0){
+        modelManager->gravity_update_function = gravitionRelativeCollision;
+        modelManager->graviton_update_function = updategraviton;
+        modelManager->graviton_emmision_function = emmitWaveGravitons;
 
-GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, void (*notify_change_function)){
+    }else if (grav_type == 1){
+        modelManager->gravity_update_function = gravitionRelativeCollision;
+        modelManager->graviton_update_function = updategraviton;
+        modelManager->graviton_emmision_function = emmitParticleGravitons;
+    }else{
+        modelManager->gravity_update_function = newtonianGravity;
+        modelManager->graviton_update_function = updategraviton;
+        modelManager->graviton_emmision_function = NULL;
+    }
+}
+
+int GravSim_get_grav_type(GravSimModelManager* modelManager){
+    if (modelManager->graviton_emmision_function == emmitWaveGravitons){
+        return 0;
+    }else if (modelManager->graviton_emmision_function == emmitParticleGravitons){
+        return 1;
+    }else{
+        return 2;
+    }
+}
+
+
+GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, void (*notify_observers_function)){
     GravSimModelManager* modelManager = malloc(sizeof(GravSimModelManager));
     modelManager->WIDTH= width;
 
     WIDTH_OF_BOX = width;
     HEIGHT_OF_BOX = height;
     BOX_WALL_THICKNESS = thickness;
+
+    // modelManager->notify_observers_function = notify_observers_function;
 
     modelManager->HEIGHT = height;
     modelManager->EPSILON = epsilon;
@@ -660,21 +826,7 @@ GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, do
 
     GRAVITATIONAL_CONSTANT = G;
 
-    if (grav_type == 0){
-        modelManager->gravity_update_function = waveGravitonsWithRelevCollision;
-        modelManager->graviton_update_function = updateWaveGravitons;
-        modelManager->graviton_emmision_function = emmitWaveGravitons;
-
-    }else if (grav_type == 1){
-        modelManager->gravity_update_function = particleGravitonsWithRelevCollision;
-        modelManager->graviton_update_function = updateParticleGravitons;
-        modelManager->graviton_emmision_function = emmitParticleGravitons;
-    }else{
-        modelManager->gravity_update_function = newtonianGravity;
-        modelManager->graviton_update_function = newtonianGravityUpdate;
-        modelManager->graviton_emmision_function = NULL;
-    }
-
+    GravSim_change_grav_func(modelManager, grav_type);
     modelManager->MIN_RADIUS = MIN_RADIUS;
 
 
@@ -684,7 +836,11 @@ GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, do
     setupBodies(modelManager);
 
     modelManager->GRAVITON_PULSE_PERIOD = modelManager->MIN_RADIUS/(C_speed);
+    
+    GRAVITON_PULSE_PERIOD = 1;//modelManager->MIN_RADIUS/(C_speed);
+
     modelManager->time_since_last_pulse = 0;
+
 
 
     return modelManager;
@@ -711,6 +867,7 @@ void GravSim_model_take_step(GravSimModelManager* modelManager){
 
 
 }
+
 
 void GravSim_clean(GravSimModelManager* MM){
     cleanBodies(MM);

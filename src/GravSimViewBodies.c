@@ -35,7 +35,7 @@ void trace_init(traceBody* trace, double positon[2], double radius, uint64_t col
 }
 
 void setupBodyTraces(viewBodiesManager* VBM){
-
+    if (VBM->num_traces == 0) return;
     VBM->traces = malloc(VBM->num_bodies*sizeof(traceBody*));
 
     for (int i = 0; i < VBM->num_bodies; i++){
@@ -45,7 +45,7 @@ void setupBodyTraces(viewBodiesManager* VBM){
 }
 
 void GravSimViewBodies_updateTraces(viewBodiesManager* VBM){
-
+    if (VBM->num_traces == 0) return;
     for (int i = 0; i < VBM->num_bodies; i++){
         trace_init(&VBM->traces[i][VBM->indexOfTrace], VBM->bodies[i].pos, *VBM->bodies[i].radius, *VBM->bodies[i].relative_colour);
     }
@@ -66,10 +66,10 @@ viewBodiesManager* viewBodiesManage_init(GravSimModelManager* MM, int num_traces
 
     if (SHOWTEXT){
         for (int i = 0; i< VBM->num_bodies; i++){
-            TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf",  4 * (*(VBM->bodies[i]).radius)/15.0);
+            VBM->bodies[i].font = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf",  4 * (*(VBM->bodies[i]).radius)/15.0);
             TTF_SetFontStyle(VBM->bodies[i].font, TTF_STYLE_BOLD);
         }
-        TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 20);
+        VBM->menuFont = TTF_OpenFont("./src/fonts/dejavu-sans-condensed-webfont.ttf", 20);
         TTF_SetFontStyle( VBM->menuFont, TTF_STYLE_BOLD);
     }
 
@@ -78,24 +78,31 @@ viewBodiesManager* viewBodiesManage_init(GravSimModelManager* MM, int num_traces
 }
 
 void closeViewBodies(viewBodiesManager* VBM){
+    if (VBM->num_bodies == 0) return;
     for (int i = 0; i<VBM->num_bodies; i++){
         TTF_CloseFont(VBM->bodies[i].font);
-        free(&VBM->bodies[i]);
+        
     }
+    free(VBM->bodies);
 
 }
 
 void closeTraces(viewBodiesManager* VBM){
-    for (int i = 0; i < VBM->num_traces; i++){
-        for (int j = 0; j < VBM->num_bodies; j++){
-            free(&VBM->traces[i][j]);
-        }
+    if (VBM->num_traces == 0) return;
+    for (int i = 0; i < VBM->num_bodies; i++){
+        free(VBM->traces[i]);
     }
+    free(VBM->traces);
 
+}
+
+void closeMenueFonts(viewBodiesManager* VBM){
+    TTF_CloseFont(VBM->menuFont);
 }
 
 void GravSimViewBodies_end_bodyView(viewBodiesManager* VBM){
     closeViewBodies(VBM);
     closeTraces(VBM);
+    closeMenueFonts(VBM);
     free(VBM);
 }

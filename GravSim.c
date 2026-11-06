@@ -35,16 +35,16 @@ bool SHOWSPEED = false;
 
 bool SHOWFPS = true;
 
-bool SHOWGRAVITON = false;
+bool SHOWGRAVITON = true;
 
 uint64_t FRAMERATE = 60;
 
-#define GRAV_TYPE 2
+#define GRAV_TYPE 1
 
 #define TRACE_INTERVAL 7
-#define MAX_GRAVITONS_DRAWN 3000
-#define GRAVITON_INTERVAL 10
-#define NUM_SEGMENTS 50
+#define MAX_GRAVITONS_DRAWN 100
+#define GRAVITON_INTERVAL 5
+#define NUM_SEGMENTS 100
 
 #define NUM_FRAMES_TO_AVERAGE 60.0
 
@@ -121,31 +121,43 @@ void renderGravitons(SDL_Renderer* renderer, viewBodiesManager* VBM){
         gravitonNode* graviton = ((gravitonList*) *VBM->bodies[i].gravitonList)->last->prev;
         int j = 0;
         
+        double num_graviton = 0;
         while (j < GRAVITON_INTERVAL && graviton != NULL && graviton->node != NULL){
             graviton = graviton->prev;
             j += 1;
         }
+
+        num_graviton += j;
 
         int i_graviton = 0;
         int num_graviton_drawn = 0;
 
         
         SDL_FPoint points[NUM_SEGMENTS];
+        
         while(num_graviton_drawn < MAX_GRAVITONS_DRAWN && graviton != NULL && graviton->node != NULL){
             j = 0;
-            SDL_SetRenderDrawColor(renderer, 0XFF/(EPSILON+graviton->node->radius), 0XFF/(EPSILON+graviton->node->radius), 0XFF/(EPSILON+graviton->node->radius), 0XFF/(EPSILON+graviton->node->radius));
+            
+            double scale = num_graviton/((gravitonList*) VBM->bodies[i].gravitonList)->count;
+
+            SDL_SetRenderDrawColor(renderer, 0XFF, 0XFF, 0XFF, 0XFF/(1-scale));
+            
             for (int l = 0; l< NUM_SEGMENTS; l++){
-                points[l+ (i_graviton * NUM_SEGMENTS)].x =  (float)(graviton->node->pos[0] + (TRIGTABLE[l][0]*(graviton->node->radius+1)));
-                points[l+ (i_graviton * NUM_SEGMENTS)].y =  (float)(graviton->node->pos[1] + (TRIGTABLE[l][1]*(graviton->node->radius+1)));
+                num_graviton  += 1;
+                
+                points[l+ (i_graviton * NUM_SEGMENTS)].x =  (float)(graviton->node->pos[0] + (TRIGTABLE[l][0]*(graviton->node->radius)));
+                points[l+ (i_graviton * NUM_SEGMENTS)].y =  (float)(graviton->node->pos[1] + (TRIGTABLE[l][1]*(graviton->node->radius)));
             }
 
             num_graviton_drawn += 1;
           
             graviton = graviton->prev;
+            
             while (j < GRAVITON_INTERVAL && graviton != NULL && graviton->node != NULL){
                 graviton = graviton->prev;
                 j += 1;
             }
+            num_graviton += j;
 
             SDL_RenderLines(renderer, points, NUM_SEGMENTS);
         }
