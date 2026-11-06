@@ -17,13 +17,13 @@
 /* Below Are all values that may be adjusted for your simulation.
 
 /* Simmulation Constants*/
-double EPSILON = 0.001; // Simmulation step size in second units. i.e EPSILON == 1 => every sim. update will tick the sim clock 1 second
+double EPSILON = 0.01; // Simmulation step size in second units. i.e EPSILON == 1 => every sim. update will tick the sim clock 1 second
 const double C =  1920.0 + 0 * 299792458.0; // The Constant of the speed of light
 double G =  6.67430 * 0.000000000001; // The Gravitational Constant
 
 const int NUM_BODIES = 2; // The number of massive body to be simmulated.
-const double MIN_SPEED = 0.2; // The minimum magnitude of the velocity of a body as a fraction of C. MUST BE << C_speed
-const double MAX_SPEED = 0.3; // The maximum magnitude of the velocity of a body as a fraction of C. MUST BE  > MIN_SPEED
+const double MIN_SPEED = 0.15; // The minimum magnitude of the velocity of a body as a fraction of C. MUST BE << C_speed
+const double MAX_SPEED = 0.20; // The maximum magnitude of the velocity of a body as a fraction of C. MUST BE  > MIN_SPEED
 
 double MIN_RADIUS = 10; // Minimum radius of a massive body
 double MAX_RADIUS = 50; // Maximum radius of a massive body
@@ -37,11 +37,11 @@ bool SHOWSPEED = false; // Display C normalized velocity values for each body. F
 bool SHOWFPS = true; // Display true frames per second and sim's C value. For best preformence turn all text false
 
 bool SHOWGRAVITON = true; // Display gravtionso or not. Safe to be true for non-graviton/Newtonian gravity type. For best preformence turn false
-#define MAX_GRAVITONS_DRAWN 100 // Max number of gravitons to be drawn for each massive body. For particles, set low, < 70. For waves set 80
-#define GRAVITON_INTERVAL 20 // Number of gravitons to skip in drawing gravitons. For particles, set high, > 30. For waves set between 0 - 20
+#define MAX_GRAVITONS_DRAWN 10 // Max number of gravitons to be drawn for each massive body. For particles, set low, < 70. For waves set 80. DOES NOT EFFECT GRAVITON EMMISION
+#define GRAVITON_INTERVAL 1 // Number of gravitons to skip in drawing gravitons. For particles, set high, > 30. For waves set between 0 - 20. DOES NOT EFFECT GRAVITON EMMISION
 
 const int NUM_TRACES = 10; // This value controls the total number of the tails of fast moving bodies. The higher the longer.
-#define TRACE_INTERVAL 7  // This value controles the length between each update of the tail of fast moving bodies. The higher the longer.
+#define TRACE_INTERVAL 3  // This value controles the length between each update of the tail of fast moving bodies. The higher the longer.
 
 uint64_t FRAMERATE = 60; // Framterate of simmulation. Keep in mind, the simulation is running in real time.
 
