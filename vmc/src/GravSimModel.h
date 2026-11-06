@@ -5,6 +5,8 @@ typedef struct{
     double WIDTH;
     double HEIGHT;
 
+    void (*notify_observers_function)();
+
     int num_bodies;
     body* bodies;
     
@@ -23,7 +25,8 @@ typedef struct{
 
 }GravSimModelManager;
 
-GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, double min_radius, int grav_type);
-void GraveSim_model_Sim(GravSimModelManager* MM);
-void GraveSim_model_take_step(GravSimModelManager* modelManager);
+GravSimModelManager* initalize_Sim(int num_bodies, double epsilon,  double C, double G, double width, double height, double thickness, int grav_type, void (*notify_observers_function));
+void GravSim_clean(GravSimModelManager* MM);
+void GravSim_model_take_step(GravSimModelManager* modelManager);
+void GravSim_change_grav_func(GravSimModelManager* modelManager, int grav_type);
 double Q_rsqrt( double number );
