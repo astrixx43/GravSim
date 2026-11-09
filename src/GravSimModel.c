@@ -659,8 +659,7 @@ void updateBodies(GravSimModelManager* modelManager){
 }
 
 void updateParticleGravitons(body* bodies, int num_bodies, double C){
-
-    C;
+    C += 1;
     for (int i = 0; i< num_bodies; i++){
         
         gravitonNode* gNode = ((gravitonList*)bodies[i].gravitonList)->first;
